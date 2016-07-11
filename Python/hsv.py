@@ -21,6 +21,7 @@ cv2.createTrackbar('v', 'result',0,255,nothing)
 while(1):
 
     _, frame = cap.read()
+    #frame = cv2.imread('/root/iitm/1.png')
 
     #converting to HSV
     hsv = cv2.cvtColor(frame,cv2.COLOR_BGR2HSV)
