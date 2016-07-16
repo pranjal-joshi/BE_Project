@@ -234,4 +234,4 @@ cv2.imwrite(savePath,dark_green_blur)
         print "\nQuitting..."
         break"""
 cv2.destroyAllWindows()
-print "\n"
+print "\nSaving image to " + savePath + "\n"
