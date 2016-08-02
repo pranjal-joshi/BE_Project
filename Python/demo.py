@@ -19,6 +19,21 @@ def checkPath(path):
     else:
         return False
 
+upperRegion=0
+lowerRegion=0
+upperPixCnt=0
+lowerPixCnt=0
+
+def cropRegions(img):
+    global upperRegion
+    global lowerRegion
+    global upperPixCnt
+    global lowerPixCnt
+    upperRegion = img[1:357, 612:1324]          # check markers.jpg for markers and calculations
+    lowerRegion = img[358:712, 612:1324]
+    upperPixCnt = cv2.countNonZero(img[1:357, 612:1324])
+    lowerPixCnt = cv2.countNonZero(img[358:712, 612:1324])
+
 radarDiameter = 250 #kms
 numberOfPixelsOnDiameter = 711
 areaOfEachPixel = (float(radarDiameter) / numberOfPixelsOnDiameter)
@@ -79,7 +94,7 @@ cv2.imwrite(savePath,img)
 cyan_mask = cv2.inRange(hsv, cyan_lower, cyan_upper)
 cyan_res = cv2.bitwise_and(img, img, mask= cyan_mask)
 pix = cv2.countNonZero(cyan_mask)
-totalPix = cv2.countNonZero(grayimg);
+totalPix = cv2.countNonZero(grayimg)
 pixelArea = "Pixel area of Cyan: \t\t" + str(float(areaOfEachPixel)*float(pix)) + " " + " sqr Km. [" + str(pix) + "/"+ str(totalPix) + " pix/img]"
 print pixelArea
 cyan_blur = cv2.medianBlur(cyan_res,3)    #ODD values only for median filter
@@ -92,6 +107,10 @@ cv2.putText(cyan_res,'CyanProcessed',(50,50), font, 1, (255,255,255), 2, cv2.LIN
 cv2.putText(cyan_blur,'CyanFiltered',(50,50), font, 1, (255,255,255), 2, cv2.LINE_AA)
 cv2.putText(cyan_res, "Area: "+str(float(areaOfEachPixel)*float(pix))+" sqr Km.", (50,100),cv2.FONT_HERSHEY_SIMPLEX, 0.85, (255,255,255), 2)
 #cv2.imshow('blur',cyan_blur)
+cropRegions(cyan_mask)
+cv2.putText(cyan_res,'Pune region: ' + str(round(float(areaOfEachPixel)*float(upperPixCnt),3))+" sqr Km.",(50,250), font, 0.85, (255,255,255), 1, cv2.LINE_AA)
+cv2.putText(cyan_res,'Satara-Kolhapur region: ' + str(round(float(areaOfEachPixel)*float(lowerPixCnt),3))+" sqr Km.",(50,300), font, 0.85, (255,255,255), 1, cv2.LINE_AA)
+
 savePath = str('/root/iitm/cv_out/'+path+'cyan.png')
 cv2.imwrite(savePath,cyan_res)
 savePath = str('/root/iitm/cv_out/'+path+'CyanFiltered.png')
@@ -115,6 +134,10 @@ cv2.putText(yellow_res, "Area: "+str(float(areaOfEachPixel)*float(pix))+" sqr Km
 #cv2.imshow('res',yellow_res)
 cv2.putText(yellow_blur,'yellowFiltered',(50,50), font, 1, (255,255,255), 2, cv2.LINE_AA)
 #cv2.imshow('blur',yellow_blur)
+cropRegions(yellow_mask)
+cv2.putText(yellow_res,'Pune region: ' + str(round(float(areaOfEachPixel)*float(upperPixCnt),3))+" sqr Km.",(50,250), font, 0.85, (255,255,255), 1, cv2.LINE_AA)
+cv2.putText(yellow_res,'Satara-Kolhapur region: ' + str(round(float(areaOfEachPixel)*float(lowerPixCnt),3))+" sqr Km.",(50,300), font, 0.85, (255,255,255), 1, cv2.LINE_AA)
+
 savePath = str('/root/iitm/cv_out/'+path+'yellow.png')
 cv2.imwrite(savePath,yellow_res)
 savePath = str('/root/iitm/cv_out/'+path+'YellowFiltered.png')
@@ -199,6 +222,11 @@ cv2.putText(light_green_res, "Area: "+str(float(areaOfEachPixel)*float(pix))+" s
 #cv2.imshow('res',light_green_res)
 cv2.putText(light_green_blur,'light_greenFiltered',(50,50), font, 1, (255,255,255), 2, cv2.LINE_AA)
 #cv2.imshow('blur',light_green_blur)
+### crop into 2 regions
+cropRegions(light_green_mask)
+cv2.putText(light_green_res,'Pune region: ' + str(round(float(areaOfEachPixel)*float(upperPixCnt),3))+" sqr Km.",(50,250), font, 0.85, (255,255,255), 1, cv2.LINE_AA)
+cv2.putText(light_green_res,'Satara-Kolhapur region: ' + str(round(float(areaOfEachPixel)*float(lowerPixCnt),3))+" sqr Km.",(50,300), font, 0.85, (255,255,255), 1, cv2.LINE_AA)
+
 savePath = str('/root/iitm/cv_out/'+path+'light_green.png')
 cv2.imwrite(savePath,light_green_res)
 savePath = str('/root/iitm/cv_out/'+path+'LightGreenFiltered.png')
@@ -222,16 +250,21 @@ cv2.putText(dark_green_res, "Area: "+str(float(areaOfEachPixel)*float(pix))+" sq
 #cv2.imshow('res',dark_green_res)
 cv2.putText(dark_green_blur,'dark_greenFiltered',(50,50), font, 1, (255,255,255), 2, cv2.LINE_AA)
 #cv2.imshow('blur',dark_green_blur)
+cropRegions(dark_green_mask)
+cv2.putText(dark_green_res,'Pune region: ' + str(round(float(areaOfEachPixel)*float(upperPixCnt),3))+" sqr Km.",(50,250), font, 0.85, (255,255,255), 1, cv2.LINE_AA)
+cv2.putText(dark_green_res,'Satara-Kolhapur region: ' + str(round(float(areaOfEachPixel)*float(lowerPixCnt),3))+" sqr Km.",(50,300), font, 0.85, (255,255,255), 1, cv2.LINE_AA)
+
 savePath = str('/root/iitm/cv_out/'+path+'dark_green.png')
 cv2.imwrite(savePath,dark_green_res)
 savePath = str('/root/iitm/cv_out/'+path+'DarkGreenFiltered.png')
 cv2.imwrite(savePath,dark_green_blur)
 ### dark_green sepearation ends here ###
-
-"""while True:
+'''
+while True:
     key = cv2.waitKey(1) & 0xFF
     if key == ord("q"):                 ## exit loop on pressing Q key
         print "\nQuitting..."
-        break"""
+        break
+        '''
 cv2.destroyAllWindows()
 print "\nSaving image to " + savePath + "\n"
