@@ -11,6 +11,11 @@ import os
 from time import sleep
 import argparse
 
+### Control parameters ###
+
+filterEnable = False
+saveOriginalImage = False
+
 ####### REQUIRED FUNCTIONS & CONSTANTS
 
 def checkPath(path):
@@ -29,10 +34,10 @@ def cropRegions(img):
     global lowerRegion
     global upperPixCnt
     global lowerPixCnt
-    upperRegion = img[1:357, 612:1324]          # check markers.jpg for markers and calculations
+    upperRegion = img[1:357, 612:1324]                          # check markers.jpg for markers and calculations
     lowerRegion = img[358:712, 612:1324]
-    upperPixCnt = cv2.countNonZero(img[1:357, 612:1324])
-    lowerPixCnt = cv2.countNonZero(img[358:712, 612:1324])
+    upperPixCnt = cv2.countNonZero(upperRegion)
+    lowerPixCnt = cv2.countNonZero(lowerRegion)
 
 radarDiameter = 250 #kms
 numberOfPixelsOnDiameter = 711
@@ -87,8 +92,9 @@ yellow_lower = np.array([10,220,172])
 yellow_upper = np.array([40,239,212])
 ############################
 
-savePath = str('/root/iitm/cv_out/original'+path+'.png')
-cv2.imwrite(savePath,img)
+if saveOriginalImage:
+    savePath = str('/root/iitm/cv_out/original'+path+'.png')
+    cv2.imwrite(savePath,img)
 
 ### Cyan color separation routine ####
 cyan_mask = cv2.inRange(hsv, cyan_lower, cyan_upper)
@@ -97,16 +103,14 @@ pix = cv2.countNonZero(cyan_mask)
 totalPix = cv2.countNonZero(grayimg)
 pixelArea = "Pixel area of Cyan: \t\t" + str(float(areaOfEachPixel)*float(pix)) + " " + " sqr Km. [" + str(pix) + "/"+ str(totalPix) + " pix/img]"
 print pixelArea
+
 cyan_blur = cv2.medianBlur(cyan_res,3)    #ODD values only for median filter
 cv2.putText(img,'Original',(70,50), font, 1, (255,255,255), 2, cv2.LINE_AA)
-#cv2.imshow('frame',img)
 cv2.putText(cyan_mask,'CyanMask',(50,50), font, 1, (255,255,255), 2, cv2.LINE_AA)
-#cv2.imshow('mask',cyan_mask)
 cv2.putText(cyan_res,'CyanProcessed',(50,50), font, 1, (255,255,255), 2, cv2.LINE_AA)
-#cv2.imshow('res',cyan_res)
 cv2.putText(cyan_blur,'CyanFiltered',(50,50), font, 1, (255,255,255), 2, cv2.LINE_AA)
 cv2.putText(cyan_res, "Area: "+str(float(areaOfEachPixel)*float(pix))+" sqr Km.", (50,100),cv2.FONT_HERSHEY_SIMPLEX, 0.85, (255,255,255), 2)
-#cv2.imshow('blur',cyan_blur)
+
 cropRegions(cyan_mask)
 cv2.putText(cyan_res,'Pune region: ' + str(round(float(areaOfEachPixel)*float(upperPixCnt),3))+" sqr Km.",(50,250), font, 0.85, (255,255,255), 1, cv2.LINE_AA)
 cv2.putText(cyan_res,'Satara-Kolhapur region: ' + str(round(float(areaOfEachPixel)*float(lowerPixCnt),3))+" sqr Km.",(50,300), font, 0.85, (255,255,255), 1, cv2.LINE_AA)
@@ -114,7 +118,8 @@ cv2.putText(cyan_res,'Satara-Kolhapur region: ' + str(round(float(areaOfEachPixe
 savePath = str('/root/iitm/cv_out/'+path+'cyan.png')
 cv2.imwrite(savePath,cyan_res)
 savePath = str('/root/iitm/cv_out/'+path+'CyanFiltered.png')
-cv2.imwrite(savePath,cyan_blur)
+if filterEnable:
+    cv2.imwrite(savePath,cyan_blur)
 ### Cyan sepearation ends here ###
 
 ### yellow color separation routine ####
@@ -124,16 +129,14 @@ pix = cv2.countNonZero(yellow_mask)
 totalPix = cv2.countNonZero(grayimg);
 pixelArea = "Pixel area of yellow: \t\t" + str(float(areaOfEachPixel)*float(pix)) + " " + " sqr Km. [" + str(pix) + "/"+ str(totalPix) + " pix/img]"
 print pixelArea
+
 yellow_blur = cv2.medianBlur(yellow_res,3)    #ODD values only for median filter
 cv2.putText(img,'Original',(70,50), font, 1, (255,255,255), 2, cv2.LINE_AA)
-#cv2.imshow('frame',img)
 cv2.putText(yellow_mask,'yellowMask',(50,50), font, 1, (255,255,255), 2, cv2.LINE_AA)
-#cv2.imshow('mask',yellow_mask)
 cv2.putText(yellow_res,'yellowProcessed',(50,50), font, 1, (255,255,255), 2, cv2.LINE_AA)
 cv2.putText(yellow_res, "Area: "+str(float(areaOfEachPixel)*float(pix))+" sqr Km.", (50,100),cv2.FONT_HERSHEY_SIMPLEX, 0.85, (255,255,255), 2)
-#cv2.imshow('res',yellow_res)
 cv2.putText(yellow_blur,'yellowFiltered',(50,50), font, 1, (255,255,255), 2, cv2.LINE_AA)
-#cv2.imshow('blur',yellow_blur)
+
 cropRegions(yellow_mask)
 cv2.putText(yellow_res,'Pune region: ' + str(round(float(areaOfEachPixel)*float(upperPixCnt),3))+" sqr Km.",(50,250), font, 0.85, (255,255,255), 1, cv2.LINE_AA)
 cv2.putText(yellow_res,'Satara-Kolhapur region: ' + str(round(float(areaOfEachPixel)*float(lowerPixCnt),3))+" sqr Km.",(50,300), font, 0.85, (255,255,255), 1, cv2.LINE_AA)
@@ -141,7 +144,8 @@ cv2.putText(yellow_res,'Satara-Kolhapur region: ' + str(round(float(areaOfEachPi
 savePath = str('/root/iitm/cv_out/'+path+'yellow.png')
 cv2.imwrite(savePath,yellow_res)
 savePath = str('/root/iitm/cv_out/'+path+'YellowFiltered.png')
-cv2.imwrite(savePath,yellow_blur)
+if filterEnable:
+    cv2.imwrite(savePath,yellow_blur)
 ### yellow sepearation ends here ###
 
 ### red_mark color separation routine ####
@@ -151,15 +155,12 @@ pix = cv2.countNonZero(red_mark_mask)
 totalPix = cv2.countNonZero(grayimg);
 pixelArea = "Pixel area of red_mark: \t" + str(float(areaOfEachPixel)*float(pix)) + " " + " sqr Km. [" + str(pix) + "/"+ str(totalPix) + " pix/img]"
 print pixelArea
+
 red_mark_blur = cv2.medianBlur(red_mark_res,3)    #ODD values only for median filter
 cv2.putText(img,'Original',(70,50), font, 1, (255,255,255), 2, cv2.LINE_AA)
-#cv2.imshow('frame',img)
 cv2.putText(red_mark_mask,'red_markMask',(50,50), font, 1, (255,255,255), 2, cv2.LINE_AA)
-#cv2.imshow('mask',red_mark_mask)
 cv2.putText(red_mark_res,'red_markProcessed',(50,50), font, 1, (255,255,255), 2, cv2.LINE_AA)
-#cv2.imshow('res',red_mark_res)
 cv2.putText(red_mark_blur,'red_markFiltered',(50,50), font, 1, (255,255,255), 2, cv2.LINE_AA)
-#cv2.imshow('blur',red_mark_blur)
 savePath = str('/root/iitm/cv_out/'+path+'red_mark.png')
 cv2.imwrite(savePath,red_mark_res)
 ### red_mark sepearation ends here ###
@@ -171,15 +172,12 @@ pix = cv2.countNonZero(blue_mark_mask)
 totalPix = cv2.countNonZero(grayimg);
 pixelArea = "Pixel area of blue_mark: \t" + str(float(areaOfEachPixel)*float(pix)) + " " + " sqr Km. [" + str(pix) + "/"+ str(totalPix) + " pix/img]"
 print pixelArea
+
 blue_mark_blur = cv2.medianBlur(blue_mark_res,3)    #ODD values only for median filter
 cv2.putText(img,'Original',(70,50), font, 1, (255,255,255), 2, cv2.LINE_AA)
-#cv2.imshow('frame',img)
 cv2.putText(blue_mark_mask,'blue_markMask',(50,50), font, 1, (255,255,255), 2, cv2.LINE_AA)
-#cv2.imshow('mask',blue_mark_mask)
 cv2.putText(blue_mark_res,'blue_markProcessed',(50,50), font, 1, (255,255,255), 2, cv2.LINE_AA)
-#cv2.imshow('res',blue_mark_res)
 cv2.putText(blue_mark_blur,'blue_markFiltered',(50,50), font, 1, (255,255,255), 2, cv2.LINE_AA)
-#cv2.imshow('blur',blue_mark_blur)
 savePath = str('/root/iitm/cv_out/'+path+'blue_mark.png')
 cv2.imwrite(savePath,blue_mark_res)
 ### blue_mark sepearation ends here ###
@@ -191,16 +189,13 @@ pix = cv2.countNonZero(sea_color_mask)
 totalPix = cv2.countNonZero(grayimg);
 pixelArea = "Pixel area of sea_color: \t" + str(float(areaOfEachPixel)*float(pix)) + " " + " sqr Km. [" + str(pix) + "/"+ str(totalPix) + " pix/img]"
 print pixelArea
+
 sea_color_blur = cv2.medianBlur(sea_color_res,3)    #ODD values only for median filter
 cv2.putText(img,'Original',(70,50), font, 1, (255,255,255), 2, cv2.LINE_AA)
-#cv2.imshow('frame',img)
 cv2.putText(sea_color_mask,'sea_colorMask',(50,50), font, 1, (255,255,255), 2, cv2.LINE_AA)
-#cv2.imshow('mask',sea_color_mask)
 cv2.putText(sea_color_res,'sea_colorProcessed',(50,50), font, 1, (255,255,255), 2, cv2.LINE_AA)
 cv2.putText(sea_color_res, "Area: "+str(float(areaOfEachPixel)*float(pix))+" sqr Km.", (50,100),cv2.FONT_HERSHEY_SIMPLEX, 0.85, (255,255,255), 2)
-#cv2.imshow('res',sea_color_res)
 cv2.putText(sea_color_blur,'sea_colorFiltered',(50,50), font, 1, (255,255,255), 2, cv2.LINE_AA)
-#cv2.imshow('blur',sea_color_blur)
 savePath = str('/root/iitm/cv_out/'+path+'sea_color.png')
 cv2.imwrite(savePath,sea_color_res)
 ### sea_color sepearation ends here ###
@@ -212,16 +207,13 @@ pix = cv2.countNonZero(light_green_mask)
 totalPix = cv2.countNonZero(grayimg);
 pixelArea = "Pixel area of light_green: \t" + str(float(areaOfEachPixel)*float(pix)) + " " + " sqr Km. [" + str(pix) + "/"+ str(totalPix) + " pix/img]"
 print pixelArea
+
 light_green_blur = cv2.medianBlur(light_green_res,3)    #ODD values only for median filter
 cv2.putText(img,'Original',(70,50), font, 1, (255,255,255), 2, cv2.LINE_AA)
-#cv2.imshow('frame',img)
 cv2.putText(light_green_mask,'light_greenMask',(50,50), font, 1, (255,255,255), 2, cv2.LINE_AA)
-#cv2.imshow('mask',light_green_mask)
 cv2.putText(light_green_res,'light_greenProcessed',(50,50), font, 1, (255,255,255), 2, cv2.LINE_AA)
 cv2.putText(light_green_res, "Area: "+str(float(areaOfEachPixel)*float(pix))+" sqr Km.", (50,100),cv2.FONT_HERSHEY_SIMPLEX, 0.85, (255,255,255), 2)
-#cv2.imshow('res',light_green_res)
 cv2.putText(light_green_blur,'light_greenFiltered',(50,50), font, 1, (255,255,255), 2, cv2.LINE_AA)
-#cv2.imshow('blur',light_green_blur)
 ### crop into 2 regions
 cropRegions(light_green_mask)
 cv2.putText(light_green_res,'Pune region: ' + str(round(float(areaOfEachPixel)*float(upperPixCnt),3))+" sqr Km.",(50,250), font, 0.85, (255,255,255), 1, cv2.LINE_AA)
@@ -230,7 +222,8 @@ cv2.putText(light_green_res,'Satara-Kolhapur region: ' + str(round(float(areaOfE
 savePath = str('/root/iitm/cv_out/'+path+'light_green.png')
 cv2.imwrite(savePath,light_green_res)
 savePath = str('/root/iitm/cv_out/'+path+'LightGreenFiltered.png')
-cv2.imwrite(savePath,light_green_blur)
+if filterEnable:
+    cv2.imwrite(savePath,light_green_blur)
 ### light_green sepearation ends here ###
 
 ### dark_green color separation routine ####
@@ -240,16 +233,14 @@ pix = cv2.countNonZero(dark_green_mask)
 totalPix = cv2.countNonZero(grayimg);
 pixelArea = "Pixel area of dark_green: \t" + str(float(areaOfEachPixel)*float(pix)) + " " + " sqr Km. [" + str(pix) + "/"+ str(totalPix) + " pix/img]"
 print pixelArea
+
 dark_green_blur = cv2.medianBlur(dark_green_res,3)    #ODD values only for median filter
 cv2.putText(img,'Original',(70,50), font, 1, (255,255,255), 2, cv2.LINE_AA)
-#cv2.imshow('frame',img)
 cv2.putText(dark_green_mask,'dark_greenMask',(50,50), font, 1, (255,255,255), 2, cv2.LINE_AA)
-#cv2.imshow('mask',dark_green_mask)
 cv2.putText(dark_green_res,'dark_greenProcessed',(50,50), font, 1, (255,255,255), 2, cv2.LINE_AA)
 cv2.putText(dark_green_res, "Area: "+str(float(areaOfEachPixel)*float(pix))+" sqr Km.", (50,100),cv2.FONT_HERSHEY_SIMPLEX, 0.85, (255,255,255), 2)
-#cv2.imshow('res',dark_green_res)
 cv2.putText(dark_green_blur,'dark_greenFiltered',(50,50), font, 1, (255,255,255), 2, cv2.LINE_AA)
-#cv2.imshow('blur',dark_green_blur)
+
 cropRegions(dark_green_mask)
 cv2.putText(dark_green_res,'Pune region: ' + str(round(float(areaOfEachPixel)*float(upperPixCnt),3))+" sqr Km.",(50,250), font, 0.85, (255,255,255), 1, cv2.LINE_AA)
 cv2.putText(dark_green_res,'Satara-Kolhapur region: ' + str(round(float(areaOfEachPixel)*float(lowerPixCnt),3))+" sqr Km.",(50,300), font, 0.85, (255,255,255), 1, cv2.LINE_AA)
@@ -257,8 +248,10 @@ cv2.putText(dark_green_res,'Satara-Kolhapur region: ' + str(round(float(areaOfEa
 savePath = str('/root/iitm/cv_out/'+path+'dark_green.png')
 cv2.imwrite(savePath,dark_green_res)
 savePath = str('/root/iitm/cv_out/'+path+'DarkGreenFiltered.png')
-cv2.imwrite(savePath,dark_green_blur)
+if filterEnable:
+    cv2.imwrite(savePath,dark_green_blur)
 ### dark_green sepearation ends here ###
+
 '''
 while True:
     key = cv2.waitKey(1) & 0xFF
