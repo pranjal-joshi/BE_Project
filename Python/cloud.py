@@ -1,5 +1,8 @@
 #!/usr/bin/python
 
+# Author: Pranjal Joshi
+# Date 	: 24-10-2016
+
 import cv2
 import numpy as np
 import time
@@ -7,6 +10,7 @@ import matplotlib.pyplot as plt
 import argparse
 import os
 import sys
+import imutils
 
 t = time.time()
 
@@ -17,24 +21,27 @@ AREAS = []
 ### CONSTANTS ###
 STEPWISE = True
 SHOW_IMAGES = False
-STORE_ORIGNINAL_IMAGE = True
-MINIMUM_CLOUD_AREA = 3000
+STORE_ORIGNINAL_IMAGE = False
+MINIMUM_CLOUD_AREA = 2000
 
-'''
-RADAR_START_POINT_X = 71 #253
-RADAR_END_POINT_X = 1186 #1494
-RADAR_RADIUS = 50 #125
+COLORBAR = [-32,-28,-24,-16,-12,-8,-4,0,8,12,16,24,28,32,40]
 
-PIXEL_X_SIDE = float(RADAR_RADIUS)/(RADAR_END_POINT_X - RADAR_START_POINT_X)
-
-RADAR_START_POINT_Y = 1184 #1362
-RADAR_END_POINT_Y = 68 #153
-RADAR_HEIGHT = 15 #20
-
-PIXEL_Y_SIDE = float(RADAR_HEIGHT)/(RADAR_START_POINT_Y - RADAR_END_POINT_Y)
-
-PIXEL_AREA = float(PIXEL_Y_SIDE)*PIXEL_X_SIDE
-'''
+COLOR_HSV_ARRAY = [np.array([120,255,255]),
+					np.array([90,255,255]),
+					np.array([75,255,255]),
+					np.array([60,255,255]),
+					np.array([60,255,175]),
+					np.array([70,255,150]),
+					np.array([30,255,255]),
+					np.array([24,255,255]),
+					np.array([20,255,255]),
+					np.array([10,255,255]),
+					np.array([0,255,255]),
+					np.array([168,255,255]),
+					np.array([150,255,255]),
+					np.array([150,127,255]),
+					np.array([150,52,255])
+					]
 #################################################################
 
 def checkPath(path):
@@ -47,13 +54,17 @@ ap = argparse.ArgumentParser()
 ap.add_argument("-i","--image",required=True,help="Path to image")
 ap.add_argument("-x","--diameter/radius",required=True,help="RADAR diameter in KM [ X axis ]")
 ap.add_argument("-y","--height",required=True,help="RADAR height in KM [ Y axis ]")
+ap.add_argument("-l","--lower",required=False,help="Lower range of Reflectivity")
+ap.add_argument("-u","--upper",required=False,help="Upper range of Reflectivity")
 args = vars(ap.parse_args())
 
 path = args["image"]
 RADAR_RADIUS = int(args["diameter/radius"])
 RADAR_HEIGHT = int(args["height"])
+lowerRange = int(args["lower"])
+upperRange = int(args["upper"])
 
-print "Opening image: ", path
+print "\nOpening image: ", path
 
 if checkPath(path):
     img = cv2.imread(path)
@@ -126,8 +137,28 @@ dilatedImg = cv2.dilate(erodedImg, dilateMask, iterations=1)
 
 modifiedImg = cv2.bitwise_and(img,img, mask=dilatedImg)		## --> Mask hsv colorspace with original image. cloud separated from background.
 
+#### new code
+if(lowerRange != None and upperRange != None):
+	try:
+		lowerIndex = COLORBAR.index(lowerRange)
+		upperIndex = COLORBAR.index(upperRange)
+		if(upperRange < lowerRange):
+			sys.exit("Upper range can't be smaller than lower range!")
+	except Exception as e:
+		print "Given color value is not in range!\nColor Ranges ->" + str(COLORBAR)
+		sys.exit(0)
+	loopCount = upperIndex - lowerIndex
+	offsetCount = lowerIndex
+	colorMask = np.zeros((img.shape[0],img.shape[1]),np.uint8)
+	for j in range(0,loopCount):
+		colorMaskTemp = cv2.inRange(hsvImg, COLOR_HSV_ARRAY[offsetCount], COLOR_HSV_ARRAY[offsetCount])
+		offsetCount = offsetCount + 1
+		colorMask = colorMask + colorMaskTemp
+	rangedImage = cv2.bitwise_and(modifiedImg,modifiedImg, mask=colorMask)
+####
+
 # Graysacale original image		 					## --> Convert masked image to grayscale
-grayImg = cv2.cvtColor(modifiedImg,cv2.COLOR_BGR2GRAY)
+grayImg = cv2.cvtColor(rangedImage,cv2.COLOR_BGR2GRAY)
 gray_blur = grayImg
 #gray_blur = cv2.GaussianBlur(grayImg, (3,3), 0)	## <-- Deprecated.This reduces precesion.
 
@@ -138,6 +169,7 @@ contourImg = thresh.copy()							## --> contour separation algorithm
 _,contours,_ = cv2.findContours(contourImg, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
 print "\nAreas of all clouds (MINIMUM_CLOUD_AREA = %d pixels):\n" % MINIMUM_CLOUD_AREA
+contourCounter = 0
 
 for cnt in contours:
 	area = cv2.contourArea(cnt)
@@ -149,7 +181,8 @@ for cnt in contours:
 		cv2.circle(outputImg, (cX, cY), 4, (0,0,0), -1)
 		printArea = (area*PIXEL_AREA)
 		AREAS.append(round(printArea,5))
-		printArea = ('%.3f' % printArea) + " Sq.Kms"				## truncate to 3 decimals
+		printArea = ('%.3f' % printArea) + " Sq.Kms " + str(contourCounter)				## truncate to 3 decimals
+		contourCounter = contourCounter + 1
 		print printArea
 		cv2.putText(outputImg, printArea, (cX - 20, cY - 20),cv2.FONT_HERSHEY_SIMPLEX, 0.6, (50,50,50), 2)
 	else:
@@ -197,6 +230,7 @@ if STEPWISE:
 		cv2.imshow("Grayscale",gray_blur)
 		cv2.imshow("Adaptive thresholding",thresh)
 		cv2.imshow("Cloud Area",outputImg)
+		cv2.imshow("Color Range image",rangedImage)
 
 else:
 	cv2.putText(outputImg,'Cloud Area',(50,50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2, cv2.LINE_AA)
