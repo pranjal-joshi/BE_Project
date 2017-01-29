@@ -2,6 +2,7 @@
 
 # Author: Pranjal Joshi
 # Date 	: 24-10-2016
+# Script to calculate cloud area using image processing.
 
 import cv2
 import numpy as np
@@ -11,8 +12,6 @@ import argparse
 import os
 import sys
 import imutils
-
-t = time.time()
 
 path = "/home/cyberfox/iitm/c1.png"
 savePath = "/home/cyberfox/iitm/cloudTracking/"
@@ -60,14 +59,14 @@ def sortContours(cnt):	# sort from left-to-right
 
 ap = argparse.ArgumentParser()
 ap.add_argument("-i","--image",required=True,help="Path to image")
-ap.add_argument("-x","--diameter/radius",required=True,help="RADAR diameter in KM [ X axis ]")
+ap.add_argument("-x","--diameter",required=True,help="RADAR diameter in KM [ X axis ]")
 ap.add_argument("-y","--height",required=True,help="RADAR height in KM [ Y axis ]")
 ap.add_argument("-l","--lower",required=False,help="Lower range of Reflectivity")
 ap.add_argument("-u","--upper",required=False,help="Upper range of Reflectivity")
 args = vars(ap.parse_args())
 
 path = args["image"]
-RADAR_RADIUS = int(args["diameter/radius"])
+RADAR_DIAMETER = int(args["diameter"])
 RADAR_HEIGHT = int(args["height"])
 lowerRange = int(args["lower"])
 upperRange = int(args["upper"])
@@ -108,24 +107,15 @@ for bgmaskCnt in bgmaskContours:
 		rightmost = tuple(bgmaskCnt[bgmaskCnt[:,:,0].argmax()][0])
 		topmost = tuple(bgmaskCnt[bgmaskCnt[:,:,1].argmin()][0])
 		bottommost = tuple(bgmaskCnt[bgmaskCnt[:,:,1].argmax()][0])
-		'''
-		print "left " + str(leftmost)
-		print "right " + str(rightmost)
-		print "top " + str(topmost)
-		print "bot " + str(bottommost)
-		print area
-		'''
 
 
 RADAR_START_POINT_X = bottommost[0] #253
 RADAR_END_POINT_X = rightmost[0] #1494
-#RADAR_RADIUS = 50 #125
 
-PIXEL_X_SIDE = float(RADAR_RADIUS)/(RADAR_END_POINT_X - RADAR_START_POINT_X)
+PIXEL_X_SIDE = float(RADAR_DIAMETER)/(RADAR_END_POINT_X - RADAR_START_POINT_X)
 
 RADAR_START_POINT_Y = bottommost[1] #1362
 RADAR_END_POINT_Y = topmost[1] #153
-#RADAR_HEIGHT = 15 #20
 
 PIXEL_Y_SIDE = float(RADAR_HEIGHT)/(RADAR_START_POINT_Y - RADAR_END_POINT_Y)
 
@@ -202,39 +192,6 @@ if(lowerRange != None and upperRange != None):
 	rangedImage = rangedNew
 
 ##########################
-
-''' 18 JAN BACKUP
-# Graysacale original image		 					## --> Convert masked image to grayscale
-grayImg = cv2.cvtColor(rangedImage,cv2.COLOR_BGR2GRAY)
-gray_blur = grayImg
-#gray_blur = cv2.GaussianBlur(grayImg, (3,3), 0)	## <-- Deprecated.This reduces precesion.
-
-## --> Thresholding. convert to binary image.
-thresh = cv2.adaptiveThreshold(gray_blur, 255, cv2.ADAPTIVE_THRESH_MEAN_C,cv2.THRESH_BINARY_INV, 3, 1)
-
-contourImg = thresh.copy()							## --> contour separation algorithm
-_,contours,_ = cv2.findContours(contourImg, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-print "\nAreas of all clouds (MINIMUM_CLOUD_AREA = %d pixels):\n" % MINIMUM_CLOUD_AREA
-contourCounter = 0
-
-for cnt in contours:
-	area = cv2.contourArea(cnt)
-	if((area != 46368) and (area > MINIMUM_CLOUD_AREA) and (area != 62496)):		# exclude colorbar
-		M = cv2.moments(cnt)
-		cX = int(M["m10"] / M["m00"])
-		cY = int(M["m01"] / M["m00"])
-		outputImg = cv2.drawContours(img, contours, -1, (0,0,0), 3)
-		cv2.circle(outputImg, (cX, cY), 4, (0,0,0), -1)
-		printArea = (area*PIXEL_AREA)
-		AREAS.append(round(printArea,5))
-		printArea = ('%.3f' % printArea) + " Sq.Kms " + str(contourCounter)				## truncate to 3 decimals
-		contourCounter = contourCounter + 1
-		print printArea
-		cv2.putText(outputImg, printArea, (cX - 20, cY - 20),cv2.FONT_HERSHEY_SIMPLEX, 0.6, (50,50,50), 2)
-	else:
-		pass
-'''
 
 # Graysacale original image		 					## --> Convert masked image to grayscale
 grayImg = cv2.cvtColor(rangedImage,cv2.COLOR_BGR2GRAY)
@@ -329,10 +286,6 @@ if STEPWISE:
 	storePath = savePath + path + 'output.png'
 	cv2.imwrite(storePath,outputImg)
 
-	'''print AREAS
-	plt.plot(AREAS,'b--',AREAS,'rs')
-	plt.show()'''
-
 	if SHOW_IMAGES:
 		cv2.imshow("Source Image",k)
 		cv2.imshow("Background subtractor",bgmask)
@@ -347,7 +300,6 @@ if STEPWISE:
 		cv2.imshow("Cropped cloud",croppedCloud)
 		cv2.imshow("croppedThresh",croppedCloudThresh)
 
-
 else:
 	cv2.putText(outputImg,'Cloud Area',(75,50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 2, cv2.LINE_AA)
 	tipText = "Scale: 1 pixel = " + str(PIXEL_AREA) + " Sq.Kms"
@@ -355,8 +307,6 @@ else:
 	cv2.putText(outputImg,rangeScale,(75,100), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255), 1, cv2.LINE_AA)
 	storePath = savePath + path + 'output.png'
 	cv2.imwrite(storePath,outputImg)
-
-#print "\nTime required for script execution: "+str(round(time.time()-t,3))+" Seconds\n"
 
 if SHOW_IMAGES:
 	while True:

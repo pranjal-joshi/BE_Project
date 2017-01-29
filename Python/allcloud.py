@@ -18,7 +18,7 @@ z = os.listdir(dirPath)
 l = len(z)
 
 ap = argparse.ArgumentParser()
-ap.add_argument("-x","--diameter/radius",required=True,help="RADAR diameter in KM [ X axis ]")
+ap.add_argument("-x","--diameter",required=True,help="RADAR diameter in KM [ X axis ]")
 ap.add_argument("-y","--height",required=True,help="RADAR height in KM [ Y axis ]")
 ap.add_argument("-l","--lower",required=False,help="Lower range of Reflectivity")
 ap.add_argument("-u","--upper",required=False,help="Upper range of Reflectivity")
@@ -32,15 +32,15 @@ if(lowerRange != None and upperRange != None):
 else:
 	rangeCommand = ""
 
-RADAR_RADIUS = int(args["diameter/radius"])
+RADAR_DIAMETER = int(args["diameter"])
 RADAR_HEIGHT = int(args["height"])
-print "USER INPUT PARAMETERS:\n\nTotal distace on X-axis :%s KMs\nTotal height on Y-axis :%s KMs" % (str(RADAR_RADIUS),str(RADAR_HEIGHT))
+print "USER INPUT PARAMETERS:\n\nTotal distace on X-axis :%s KMs\nTotal height on Y-axis :%s KMs" % (str(RADAR_DIAMETER),str(RADAR_HEIGHT))
 print "Upper reflectivity limit(dB): %s\nLower reflectivity limit(dB): %s" % (str(upperRange),str(lowerRange))
 
 for i in range(0,l):
     s = str(z[i])
     if (s.endswith('.png') or s.endswith('.bmp') or s.endswith('.jpg')): #and (s.startswith('c')):
-        cmd = "python cloud.py -i " + s + " -x " + str(RADAR_RADIUS) + " -y " + str(RADAR_HEIGHT) + rangeCommand
+        cmd = "python cloud.py -i " + s + " -x " + str(RADAR_DIAMETER) + " -y " + str(RADAR_HEIGHT) + rangeCommand
         os.system(cmd)
     else:
         pass
