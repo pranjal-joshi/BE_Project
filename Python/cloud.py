@@ -53,9 +53,9 @@ def checkPath(path):	# check for valid path
 		return False
 
 def sortContours(cnt):	# sort from left-to-right
-	reverseSort = False
+	reverseSort = True
 	boundingBoxes = [cv2.boundingRect(c) for c in cnt]
-	(cnts, boundingBoxes) = zip(*sorted(zip(cnt, boundingBoxes),key=lambda b:b[1][0], reverse=rev))
+	(cnts, boundingBoxes) = zip(*sorted(zip(cnt, boundingBoxes),key=lambda b:b[1][0], reverse=reverseSort))
 	return (cnts, boundingBoxes)
 
 ap = argparse.ArgumentParser()
@@ -71,6 +71,7 @@ RADAR_RADIUS = int(args["diameter/radius"])
 RADAR_HEIGHT = int(args["height"])
 lowerRange = int(args["lower"])
 upperRange = int(args["upper"])
+rangeScale = "Reflectivity range: " + str(lowerRange) + " to " + str(upperRange) + " (in dB)"
 
 print "\nOpening image: ", path
 
@@ -250,37 +251,52 @@ outerThresh = cv2.adaptiveThreshold(outerGray, 255, cv2.ADAPTIVE_THRESH_MEAN_C,c
 contourImg = thresh.copy()							## --> contour separation algorithm
 _,contours,_ = cv2.findContours(contourImg, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 (contours, boundingBoxes) = sortContours(contours)
+colorBoxContour = contours[0]
+contours = contours[1:len(contours)]				## --> Exclude color bar area calculations :)
 
 print "\nAreas of all clouds (MINIMUM_CLOUD_AREA = %d pixels):\n" % MINIMUM_CLOUD_AREA
 contourCounter = 0
 
 for cnt in contours:
 	area = cv2.contourArea(cnt)
-	if((area != 46368) and (area > MINIMUM_CLOUD_AREA) and (area != 62496)):		# exclude colorbar
+	if(area > MINIMUM_CLOUD_AREA):
 		M = cv2.moments(cnt)
 		cX = int(M["m10"] / M["m00"])
 		cY = int(M["m01"] / M["m00"])
-		####
+		#### new code - 29 JAN - cloud cropping & thresholding ###
 		x,y,w,h = cv2.boundingRect(cnt)
 		cv2.rectangle(outputImg,(x,y),(x+w,y+h),(0,0,255),3)
-		croppedCloud = rangedImage[y:y+h, x:x+w]
+		croppedCloud = gray_blur[y:y+h, x:x+w]
+		ret,croppedCloudThresh = cv2.threshold(croppedCloud,1,255,cv2.THRESH_BINARY)
+		area = cv2.countNonZero(croppedCloudThresh)
 		####
 		outputImg = cv2.drawContours(img, contours, -1, (0,0,0), 3)
 		cv2.circle(outputImg, (cX, cY), 4, (0,0,0), -1)
 		printArea = (area*PIXEL_AREA)
 		AREAS.append(round(printArea,5))
-		printArea = ('%.3f' % printArea) + " Sq.Kms " + str(contourCounter)				## truncate to 3 decimals
+		printArea = ('%.3f' % printArea) + " Sq.Kms "				## truncate to 3 decimals
 		contourCounter = contourCounter + 1
-		print printArea
-		cv2.putText(outputImg, printArea, (cX - 20, cY - 20),cv2.FONT_HERSHEY_SIMPLEX, 0.6, (50,50,50), 2)
+		print printArea + "\t-> cloud number ->\t" + str(contourCounter)
+		cv2.putText(outputImg, printArea, (cX - 20, cY - 20),cv2.FONT_HERSHEY_SIMPLEX, 0.6, (20,20,20), 2)
+		try:
+			cv2.putText(outputImg, str(contourCounter), (x+w-10,y-20),cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,0,255), 2)
+		except Exception as e:
+			pass
 	else:
 		pass
 
+contours = list(contours)
+contours.insert(0, colorBoxContour)
+contours = tuple(contours)
+outputImg = cv2.drawContours(outputImg, contours, -1,(0,0,0),3)
+
 innerCopy = innerThresh.copy()
 _,innerContours,_ = cv2.findContours(innerCopy, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+(innerContours, boundingBoxes) = sortContours(innerContours)
+innerContours = innerContours[1:len(innerContours)]
 
 for c in innerContours:
-	#outputImg = cv2.drawContours(outputImg, innerContours, -1, (0,0,0), 3)
+	outputImg = cv2.drawContours(outputImg, innerContours, -1, (0,0,0), 2)
 	pass
 
 if STEPWISE:
@@ -306,9 +322,10 @@ if STEPWISE:
 	storePath = savePath + path + 'grid.png'
 	cv2.imwrite(storePath,bgmask)
 
-	cv2.putText(outputImg,'Cloud Area',(50,50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 2, cv2.LINE_AA)
+	cv2.putText(outputImg,'Cloud Area',(75,50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 2, cv2.LINE_AA)
 	tipText = "Scale: 1 pixel = " + str(PIXEL_AREA) + " Sq.Kms"
-	cv2.putText(outputImg,tipText,(50,75), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255), 1, cv2.LINE_AA)
+	cv2.putText(outputImg,tipText,(75,80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255), 1, cv2.LINE_AA)
+	cv2.putText(outputImg,rangeScale,(75,100), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255), 1, cv2.LINE_AA)
 	storePath = savePath + path + 'output.png'
 	cv2.imwrite(storePath,outputImg)
 
@@ -328,13 +345,14 @@ if STEPWISE:
 		cv2.imshow("OuterRegion",outerRegion)
 		cv2.imshow("Color RangeNew image",rangedNew)
 		cv2.imshow("Cropped cloud",croppedCloud)
+		cv2.imshow("croppedThresh",croppedCloudThresh)
 
 
 else:
-	cv2.putText(outputImg,'Cloud Area',(50,50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2, cv2.LINE_AA)
+	cv2.putText(outputImg,'Cloud Area',(75,50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 2, cv2.LINE_AA)
 	tipText = "Scale: 1 pixel = " + str(PIXEL_AREA) + " Sq.Kms"
-	cv2.putText(outputImg,tipText,(50,75), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 2, cv2.LINE_AA)
-	cv2.imshow("Cloud Area",outputImg)
+	cv2.putText(outputImg,tipText,(75,80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255), 1, cv2.LINE_AA)
+	cv2.putText(outputImg,rangeScale,(75,100), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255), 1, cv2.LINE_AA)
 	storePath = savePath + path + 'output.png'
 	cv2.imwrite(storePath,outputImg)
 
