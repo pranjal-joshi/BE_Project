@@ -9,7 +9,7 @@ import argparse
 import time
 
 # Place input images in this dirctory.
-dirPath = "/root/iitm/"
+dirPath = "/home/cyberfox/iitm/"
 rangeCommand = ""
 
 os.system("clear")
@@ -35,6 +35,7 @@ else:
 RADAR_RADIUS = int(args["diameter/radius"])
 RADAR_HEIGHT = int(args["height"])
 print "USER INPUT PARAMETERS:\n\nTotal distace on X-axis :%s KMs\nTotal height on Y-axis :%s KMs" % (str(RADAR_RADIUS),str(RADAR_HEIGHT))
+print "Upper reflectivity limit(dB): %s\nLower reflectivity limit(dB): %s" % (str(upperRange),str(lowerRange))
 
 for i in range(0,l):
     s = str(z[i])
