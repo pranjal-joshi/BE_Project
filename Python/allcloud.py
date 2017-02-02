@@ -11,19 +11,34 @@ import MySQLdb as mdb
 import matplotlib.pyplot as plt
 import numpy as np
 
+# Global varables
 SHOW_PLOT = False
+dirPath = "/home/cyberfox/iitm/"
+rangeCommand = ""
+
+# for printing colorful text
+class colorText:
+	HEAD = '\033[95m'
+	BLUE = '\033[94m'
+	GREEN = '\033[92m'
+	WARN = '\033[93m'
+	FAIL = '\033[91m'
+	END = '\033[0m'
+	BOLD = '\033[1m'
+	UNDR = '\033[4m'
+
+os.system("clear")
 
 # Database connection manager
 try:
+	print colorText.GREEN + "Initializing database to store analyzed data..." + colorText.END
 	con = mdb.connect("localhost","root","linux")
 	db = con.cursor()
 except Exception as e:
-	raise e
-	sys.exit("Failed to connect MySQL database! Check credentials & make sure that MySQL server is running in background.")
+	sys.exit(colorText.FAIL + colorText.BOLD + "Failed to connect MySQL database! Check credentials & make sure that MySQL server is running in background." + colorText.END)
 
 def initDB():
 	try:
-		print "Initializing database to store analyzed data..."
 		db.execute("show databases")
 		a = db.fetchall()
 		a = str(a)
@@ -38,18 +53,18 @@ def initDB():
 		db.execute("create table image_table(iid INT AUTO_INCREMENT, datetime VARCHAR(40), PRIMARY KEY(iid))")
 		db.execute("create table cloud_table(iid INT, cid INT, area FLOAT)")
 		con.commit()
-		print "Database created successfully!\n"
+		print colorText.GREEN + "Database created successfully!\n" + colorText.END
 	except Exception as e:
 		raise e
-		sys.exit("Something went wrong, Failed to initialize database correctly!!")
+		sys.exit(colorText.FAIL + "Something went wrong, Failed to initialize database correctly!!" + colorText.END)
 
 def closeDB():
-	print "Closing database..."
+	print colorText.WARN + "\nClosing database...\n" + colorText.END
 	con.close()
 
 
 def plotGraph():
-	print "\nPlotting analyzed data... Please wait...\n"
+	print colorText.BOLD + colorText.UNDR + colorText.HEAD + "\nPlotting analyzed data... Please wait...\n" + colorText.END
 	db.execute("use cloudTracking")
 	db.execute("select datetime from image_table")
 	fetchTime = db.fetchall()
@@ -74,7 +89,7 @@ def plotGraph():
 	maxArea = db.fetchone()
 	maxArea = int(maxArea[0])
 
-	fig = plt.figure()
+	fig = plt.figure(figsize=(16,9))
 
 	for cldCnt in range(1,maxClouds+1):
 		db.execute("select area from cloud_table where cid=%s" % cldCnt)
@@ -105,16 +120,11 @@ def plotGraph():
 	if SHOW_PLOT:
 		plt.show()
 
-# Place input images in this dirctory.
-dirPath = "/home/cyberfox/iitm/"
-rangeCommand = ""
-
-os.system("clear")
 # initialize MySQL database to store analyzed data.
 initDB()
 
 t = time.time()
-z = os.listdir(dirPath)
+z = sorted(os.listdir(dirPath))			# Read files in sequential manner.
 l = len(z)
 
 ap = argparse.ArgumentParser()
@@ -134,8 +144,8 @@ else:
 
 RADAR_DIAMETER = int(args["diameter"])
 RADAR_HEIGHT = int(args["height"])
-print "USER INPUT PARAMETERS:\n\nTotal distace on X-axis :%s KMs\nTotal height on Y-axis :%s KMs" % (str(RADAR_DIAMETER),str(RADAR_HEIGHT))
-print "Upper reflectivity limit(dB): %s\nLower reflectivity limit(dB): %s" % (str(upperRange),str(lowerRange))
+print colorText.WARN + "USER INPUT PARAMETERS:\n\nTotal distace on X-axis :%s KMs\nTotal height on Y-axis :%s KMs" % (str(RADAR_DIAMETER),str(RADAR_HEIGHT))
+print "Upper reflectivity limit(dB): %s\nLower reflectivity limit(dB): %s" % (str(upperRange),str(lowerRange)) + colorText.END
 
 for i in range(0,l):
     s = str(z[i])
@@ -145,6 +155,6 @@ for i in range(0,l):
     else:
         pass
 
-print "\nTime required for script execution: "+str(round(time.time()-t,3))+" Seconds\n"
+print colorText.GREEN + "\nTime required for script execution: "+str(round(time.time()-t,3))+" Seconds\n" + colorText.END
 plotGraph()
 closeDB()

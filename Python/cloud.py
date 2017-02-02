@@ -16,9 +16,16 @@ import pytesseract
 from PIL import Image
 import MySQLdb as mdb
 
-path = "/home/cyberfox/iitm/c1.png"
-savePath = "/home/cyberfox/iitm/cloudTracking/"
-thisIID = 0
+# for printing colorful text
+class colorText:
+	HEAD = '\033[95m'
+	BLUE = '\033[94m'
+	GREEN = '\033[92m'
+	WARN = '\033[93m'
+	FAIL = '\033[91m'
+	END = '\033[0m'
+	BOLD = '\033[1m'
+	UNDR = '\033[4m'
 
 # Open database connection
 try:
@@ -27,13 +34,16 @@ try:
 	db.execute("use cloudTracking")
 except Exception as e:
 	raise e
-	sys.exit("Failed to connect MySQL database! Check credentials & make sure that MySQL server is running in background.")
+	sys.exit(colorText.FAIL + "Failed to connect MySQL database! Check credentials & make sure that MySQL server is running in background." + colorText.END)
 
 ### CONSTANTS ###
 STEPWISE = False
 SHOW_IMAGES = False
 STORE_ORIGNINAL_IMAGE = False
 MINIMUM_CLOUD_AREA = 2000
+path = "/home/cyberfox/iitm/c1.png"
+savePath = "/home/cyberfox/iitm/cloudTracking/"
+thisIID = 0
 
 # Reflectivity values
 COLORBAR = [-32,-28,-24,-16,-12,-8,-4,0,8,12,16,24,28,32,40]
@@ -87,13 +97,13 @@ def getOCR(path):
 	datetime = datetime.replace('O','0')
 	datetime = datetime.replace('\n','')
 	datetime = datetime.replace(' ','')
-	print "Image captured at : %s" % datetime
+	print colorText.HEAD + "Image captured at : %s" % datetime + colorText.END
 	db.execute("insert into image_table(datetime) values ('%s')" % datetime)
 	con.commit()
 	db.execute("select iid from image_table order by iid desc limit 1")		# fetch iid of last row
 	thisIID = db.fetchone()
 	thisIID = int(thisIID[0])
-	print "Image number: " + str(thisIID)
+	print colorText.HEAD + "Image number: " + str(thisIID) + colorText.END
 
 
 ap = argparse.ArgumentParser()
@@ -111,14 +121,14 @@ lowerRange = int(args["lower"])
 upperRange = int(args["upper"])
 rangeScale = "Reflectivity range: " + str(lowerRange) + " to " + str(upperRange) + " (in dB)"
 
-print "\nOpening image: ", path
+print colorText.BLUE + "\nOpening image: ", path, colorText.END
 getOCR(path)				# get datetime of image by applying OCR.
 
 if checkPath(path):
     img = cv2.imread(path)
     outputImg = img
 else:
-    sys.exit("Invalid image path is given!")
+    sys.exit(colorText.BOLD + colorText.FAIL + "Invalid image path is given!" + colorText.FAIL)
 
 ## HSV white eliminate boundaries ##				## --> Remove white backgrounds
 lower = np.array([0,52,0])
@@ -182,9 +192,13 @@ if(lowerRange != None and upperRange != None):
 		lowerIndex = COLORBAR.index(lowerRange)
 		upperIndex = COLORBAR.index(upperRange)
 		if(upperRange < lowerRange):
-			sys.exit("Upper range can't be smaller than lower range!")
+			sys.exit(colorText.FAIL + "Upper range can't be smaller than lower range!" + colorText.END)
 	except Exception as e:
-		print "Given color value is not in range!\nColor Ranges ->" + str(COLORBAR)
+		print colorText.FAIL + "Given color value is not in range!\nColor Ranges ->" + str(COLORBAR) + colorText.END
+		try:		# Kill batch processing if running with wrong inputs.
+			os.system("sudo killall allcloud.py")
+		except:
+			pass
 		sys.exit(0)
 	### for entire image
 	loopCount = len(COLORBAR)-1
