@@ -12,13 +12,25 @@ import argparse
 import os
 import sys
 import imutils
+import pytesseract
+from PIL import Image
+import MySQLdb as mdb
 
 path = "/home/cyberfox/iitm/c1.png"
 savePath = "/home/cyberfox/iitm/cloudTracking/"
-AREAS = []
+thisIID = 0
+
+# Open database connection
+try:
+	con = mdb.connect("localhost","root","linux")
+	db = con.cursor()
+	db.execute("use cloudTracking")
+except Exception as e:
+	raise e
+	sys.exit("Failed to connect MySQL database! Check credentials & make sure that MySQL server is running in background.")
 
 ### CONSTANTS ###
-STEPWISE = True
+STEPWISE = False
 SHOW_IMAGES = False
 STORE_ORIGNINAL_IMAGE = False
 MINIMUM_CLOUD_AREA = 2000
@@ -54,8 +66,35 @@ def checkPath(path):	# check for valid path
 def sortContours(cnt):	# sort from left-to-right
 	reverseSort = True
 	boundingBoxes = [cv2.boundingRect(c) for c in cnt]
-	(cnts, boundingBoxes) = zip(*sorted(zip(cnt, boundingBoxes),key=lambda b:b[1][0], reverse=reverseSort))
+	try:
+		(cnts, boundingBoxes) = zip(*sorted(zip(cnt, boundingBoxes),key=lambda b:b[1][0], reverse=reverseSort))
+	except Exception as e:
+		raise e
 	return (cnts, boundingBoxes)
+
+def closeDB():
+	con.close()
+
+def getOCR(path):
+	global thisIID
+	img = Image.open(path)
+	txt = pytesseract.image_to_string(img,lang="eng")
+	index = txt.find('Deg. ') + 17 #5
+	datetime = txt[index:index+9] #20]
+	datetime = datetime.replace('T',' ')
+	# rectify OCR output if error occurs
+	datetime = datetime.replace('Z','2')
+	datetime = datetime.replace('O','0')
+	datetime = datetime.replace('\n','')
+	datetime = datetime.replace(' ','')
+	print "Image captured at : %s" % datetime
+	db.execute("insert into image_table(datetime) values ('%s')" % datetime)
+	con.commit()
+	db.execute("select iid from image_table order by iid desc limit 1")		# fetch iid of last row
+	thisIID = db.fetchone()
+	thisIID = int(thisIID[0])
+	print "Image number: " + str(thisIID)
+
 
 ap = argparse.ArgumentParser()
 ap.add_argument("-i","--image",required=True,help="Path to image")
@@ -73,6 +112,7 @@ upperRange = int(args["upper"])
 rangeScale = "Reflectivity range: " + str(lowerRange) + " to " + str(upperRange) + " (in dB)"
 
 print "\nOpening image: ", path
+getOCR(path)				# get datetime of image by applying OCR.
 
 if checkPath(path):
     img = cv2.imread(path)
@@ -208,6 +248,7 @@ outerThresh = cv2.adaptiveThreshold(outerGray, 255, cv2.ADAPTIVE_THRESH_MEAN_C,c
 contourImg = thresh.copy()							## --> contour separation algorithm
 _,contours,_ = cv2.findContours(contourImg, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 (contours, boundingBoxes) = sortContours(contours)
+
 colorBoxContour = contours[0]
 contours = contours[1:len(contours)]				## --> Exclude color bar area calculations :)
 
@@ -230,7 +271,7 @@ for cnt in contours:
 		outputImg = cv2.drawContours(img, contours, -1, (0,0,0), 3)
 		cv2.circle(outputImg, (cX, cY), 4, (0,0,0), -1)
 		printArea = (area*PIXEL_AREA)
-		AREAS.append(round(printArea,5))
+		sqlArea = float('%.3f' % printArea)
 		printArea = ('%.3f' % printArea) + " Sq.Kms "				## truncate to 3 decimals
 		contourCounter = contourCounter + 1
 		print printArea + "\t-> cloud number ->\t" + str(contourCounter)
@@ -239,6 +280,8 @@ for cnt in contours:
 			cv2.putText(outputImg, str(contourCounter), (x+w-10,y-20),cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,0,255), 2)
 		except Exception as e:
 			pass
+		db.execute("insert into cloud_table (iid, cid, area) values (%s, %s, %s)" % (str(thisIID), str(contourCounter), str(sqlArea)))
+		con.commit()
 	else:
 		pass
 
@@ -316,3 +359,5 @@ if SHOW_IMAGES:
 	        break
 
 	cv2.destroyAllWindows()
+
+closeDB()
