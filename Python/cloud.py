@@ -15,6 +15,7 @@ import imutils
 import pytesseract
 from PIL import Image
 import MySQLdb as mdb
+from multiprocessing import Process, Value
 
 # for printing colorful text
 class colorText:
@@ -40,7 +41,8 @@ except Exception as e:
 STEPWISE = False
 SHOW_IMAGES = False
 STORE_ORIGNINAL_IMAGE = False
-MINIMUM_CLOUD_AREA = 2000
+MINIMUM_CLOUD_AREA = 1660
+MULTIPROCESSING = True
 path = "/home/cyberfox/iitm/c1.png"
 savePath = "/home/cyberfox/iitm/cloudTracking/"
 thisIID = 0
@@ -65,6 +67,10 @@ COLOR_HSV_ARRAY = [np.array([120,255,255]),
 					np.array([150,127,255]),
 					np.array([150,52,255])
 					]
+
+## HSV white eliminate boundaries ##				## --> Remove white backgrounds
+lower = np.array([0,52,0])
+upper = np.array([180,255,255])
 #################################################################
 
 def checkPath(path):	# check for valid path
@@ -87,6 +93,9 @@ def closeDB():
 
 def getOCR(path):
 	global thisIID
+	con = mdb.connect("localhost","root","linux")
+	db = con.cursor()
+	db.execute("use cloudTracking")
 	img = Image.open(path)
 	txt = pytesseract.image_to_string(img,lang="eng")
 	index = txt.find('Deg. ') + 17 #5
@@ -105,6 +114,50 @@ def getOCR(path):
 	thisIID = int(thisIID[0])
 	print colorText.HEAD + "Image number: " + str(thisIID) + colorText.END
 
+def getPixelArea(shared_var):
+	global PIXEL_AREA
+	#background subtractor
+	bgsub = cv2.createBackgroundSubtractorMOG2()
+	bgmask = bgsub.apply(img)
+	r, bgmask = cv2.threshold(bgmask,127,255,cv2.THRESH_BINARY)
+	bgmaskImg = bgmask.copy()							## --> contour separation algorithm
+	_,bgmaskContours,_ = cv2.findContours(bgmaskImg, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+	global leftmost
+	global rightmost
+	global topmost
+	global bottommost
+
+	for bgmaskCnt in bgmaskContours:
+		global topmost
+		global rightmost
+		global leftmost
+		global bottommost
+		area = cv2.contourArea(bgmaskCnt)
+		if area > 100000:
+			leftmost = tuple(bgmaskCnt[bgmaskCnt[:,:,0].argmin()][0])
+			rightmost = tuple(bgmaskCnt[bgmaskCnt[:,:,0].argmax()][0])
+			topmost = tuple(bgmaskCnt[bgmaskCnt[:,:,1].argmin()][0])
+			bottommost = tuple(bgmaskCnt[bgmaskCnt[:,:,1].argmax()][0])
+
+
+	RADAR_START_POINT_X = bottommost[0] #253
+	RADAR_END_POINT_X = rightmost[0] #1494
+
+	PIXEL_X_SIDE = float(RADAR_DIAMETER)/(RADAR_END_POINT_X - RADAR_START_POINT_X)
+
+	RADAR_START_POINT_Y = bottommost[1] #1362
+	RADAR_END_POINT_Y = topmost[1] #153
+
+	PIXEL_Y_SIDE = float(RADAR_HEIGHT)/(RADAR_START_POINT_Y - RADAR_END_POINT_Y)
+
+	PIXEL_AREA = float(PIXEL_Y_SIDE)*PIXEL_X_SIDE
+	shared_var.value = PIXEL_AREA
+
+## GLOBAL VARIABLES ##
+PIXEL_AREA = 0
+multiprocessing_pixel_area = Value('d',0.0)
+##
 
 ap = argparse.ArgumentParser()
 ap.add_argument("-i","--image",required=True,help="Path to image")
@@ -122,7 +175,6 @@ upperRange = int(args["upper"])
 rangeScale = "Reflectivity range: " + str(lowerRange) + " to " + str(upperRange) + " (in dB)"
 
 print colorText.BLUE + "\nOpening image: ", path, colorText.END
-getOCR(path)				# get datetime of image by applying OCR.
 
 if checkPath(path):
     img = cv2.imread(path)
@@ -130,47 +182,14 @@ if checkPath(path):
 else:
     sys.exit(colorText.BOLD + colorText.FAIL + "Invalid image path is given!" + colorText.FAIL)
 
-## HSV white eliminate boundaries ##				## --> Remove white backgrounds
-lower = np.array([0,52,0])
-upper = np.array([180,255,255])
-
-#background subtractor
-bgsub = cv2.createBackgroundSubtractorMOG2()
-bgmask = bgsub.apply(img)
-r, bgmask = cv2.threshold(bgmask,127,255,cv2.THRESH_BINARY)
-bgmaskImg = bgmask.copy()							## --> contour separation algorithm
-_,bgmaskContours,_ = cv2.findContours(bgmaskImg, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-global leftmost
-global rightmost
-global topmost
-global bottommost
-
-for bgmaskCnt in bgmaskContours:
-	global topmost
-	global rightmost
-	global leftmost
-	global bottommost
-	area = cv2.contourArea(bgmaskCnt)
-	if area > 100000:
-		leftmost = tuple(bgmaskCnt[bgmaskCnt[:,:,0].argmin()][0])
-		rightmost = tuple(bgmaskCnt[bgmaskCnt[:,:,0].argmax()][0])
-		topmost = tuple(bgmaskCnt[bgmaskCnt[:,:,1].argmin()][0])
-		bottommost = tuple(bgmaskCnt[bgmaskCnt[:,:,1].argmax()][0])
-
-
-RADAR_START_POINT_X = bottommost[0] #253
-RADAR_END_POINT_X = rightmost[0] #1494
-
-PIXEL_X_SIDE = float(RADAR_DIAMETER)/(RADAR_END_POINT_X - RADAR_START_POINT_X)
-
-RADAR_START_POINT_Y = bottommost[1] #1362
-RADAR_END_POINT_Y = topmost[1] #153
-
-PIXEL_Y_SIDE = float(RADAR_HEIGHT)/(RADAR_START_POINT_Y - RADAR_END_POINT_Y)
-
-PIXEL_AREA = float(PIXEL_Y_SIDE)*PIXEL_X_SIDE
-
+if MULTIPROCESSING:
+	ocrProcess = Process(target=getOCR,args=(path,))
+	pixelAreaProcess = Process(target=getPixelArea,args=(multiprocessing_pixel_area,))
+	ocrProcess.start()
+	pixelAreaProcess.start()
+else:
+	getOCR(path)				# get datetime of image by applying OCR.
+	getPixelArea(multiprocessing_pixel_area)
 
 # HSV cloud separation								## --> Convert to HSV colorspace
 hsvImg = cv2.cvtColor(img,cv2.COLOR_BGR2HSV)
@@ -284,6 +303,8 @@ for cnt in contours:
 		####
 		outputImg = cv2.drawContours(img, contours, -1, (0,0,0), 3)
 		cv2.circle(outputImg, (cX, cY), 4, (0,0,0), -1)
+		if MULTIPROCESSING:
+			PIXEL_AREA = multiprocessing_pixel_area.value
 		printArea = (area*PIXEL_AREA)
 		sqlArea = float('%.3f' % printArea)
 		printArea = ('%.3f' % printArea) + " Sq.Kms "				## truncate to 3 decimals
