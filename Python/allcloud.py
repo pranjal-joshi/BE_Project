@@ -78,7 +78,7 @@ def plotGraph():
 			temp = fetchTime[i][0]
 			timeArray.append(temp)
 
-	timeArray.sort()
+	#timeArray.sort()
 	db.execute("select max(iid) from cloud_table")
 	maxImages = db.fetchone()
 	maxImages = int(maxImages[0])
@@ -95,9 +95,12 @@ def plotGraph():
 		db.execute("select area from cloud_table where cid=%s" % cldCnt)
 		fetchArea = db.fetchall()
 		cnt = len(fetchArea)
-		areaArray = []
+		areaArray = np.zeros((maxImages),np.float32);
 		for k in range(0,cnt):
-			areaArray.append(float(fetchArea[k][0]))
+			db.execute("select iid from cloud_table where cast(area as decimal)=cast(%s as decimal)" % str(fetchArea[k][0]))
+			index = db.fetchone()
+			index = int(index[0])
+			areaArray[index-1] = float(fetchArea[k][0])
 
 		# start plotting
 		xAxis = np.arange(0,len(fetchTime))
@@ -114,7 +117,7 @@ def plotGraph():
 		plt.title("Cloud Area Statistics",fontsize=30)
 		plt.figtext(.5,.86,('For reflectivity range: %s to %s dB.' % (lowerRange, upperRange)),fontsize=10,ha='center')
 		plt.grid(True)
-		plt.plot(xAxis, yAxis, linewidth=2.0, label=("Cloud " + str(cldCnt)), marker='o')
+		plt.plot(xAxis, yAxis, linewidth=2.0, label=("Cloud " + str(cldCnt))) #marker='o'
 		plt.legend(loc='upper right', prop={'size':10})
 	fig.savefig(dirPath + "/cloudTracking/analyzedPlot.png")
 	if SHOW_PLOT:
