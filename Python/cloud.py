@@ -43,6 +43,7 @@ SHOW_IMAGES = False
 STORE_ORIGNINAL_IMAGE = False
 MINIMUM_CLOUD_AREA = 1660
 MULTIPROCESSING = True
+OCR = False
 path = "/home/cyberfox/iitm/c1.png"
 savePath = "/home/cyberfox/iitm/cloudTracking/"
 thisIID = 0
@@ -93,29 +94,47 @@ def closeDB():
 
 def getOCR(path):
 	global thisIID
-	con = mdb.connect("localhost","root","linux")
-	db = con.cursor()
-	db.execute("use cloudTracking")
-	img = Image.open(path)
-	txt = pytesseract.image_to_string(img,lang="eng")
-	index = txt.find('Deg. ') + 17 #5
-	datetime = txt[index:index+9] #20]
-	datetime = datetime.replace('T',' ')
-	# rectify OCR output if error occurs
-	datetime = datetime.replace('Z','2')
-	datetime = datetime.replace('O','0')
-	datetime = datetime.replace('\n','')
-	datetime = datetime.replace(' ','')
-	print colorText.HEAD + "Image captured at : %s" % datetime + colorText.END
-	db.execute("insert into image_table(datetime) values ('%s')" % datetime)
-	con.commit()
+	if OCR:				# Deprecated ---> Less accurate, More computation
+		con = mdb.connect("localhost","root","linux")
+		db = con.cursor()
+		db.execute("use cloudTracking")
+		img = Image.open(path)
+		txt = pytesseract.image_to_string(img,lang="eng")
+		index = txt.find('Deg. ') + 17 #5
+		datetime = txt[index:index+9] #20]
+		datetime = datetime.replace('T',' ')
+		# rectify OCR output if error occurs
+		datetime = datetime.replace('Z','2')
+		datetime = datetime.replace('O','0')
+		datetime = datetime.replace('\n','')
+		datetime = datetime.replace(' ','')
+		print colorText.HEAD + "Image captured at : %s" % datetime + colorText.END
+		db.execute("insert into image_table(datetime) values ('%s')" % datetime)
+		con.commit()
+		pass
+	else:
+		con = mdb.connect("localhost","root","linux")
+		db = con.cursor()
+		db.execute("use cloudTracking")
+		path = path.split('_')
+		s = path[1]
+		s = s.split('-')
+		d = s[0]
+		t = s[1]
+		time = t[0:2] + ":" + t[2:4] + ":" + t[4:6]
+		date = d[0:4] + "-" + d[5:6] + ":" + d[7:8]
+		print colorText.HEAD + ("Image captured at : %s" % time) + colorText.END
+		db.execute("insert into image_table(datetime) values ('%s')" % time)
+		con.commit()
 	db.execute("select iid from image_table order by iid desc limit 1")		# fetch iid of last row
 	thisIID = db.fetchone()
 	thisIID = int(thisIID[0])
 	print colorText.HEAD + "Image number: " + str(thisIID) + colorText.END
 
+bgmask = 0
 def getPixelArea(shared_var):
 	global PIXEL_AREA
+	global bgmask
 	#background subtractor
 	bgsub = cv2.createBackgroundSubtractorMOG2()
 	bgmask = bgsub.apply(img)
@@ -315,6 +334,12 @@ for cnt in contours:
 			cv2.putText(outputImg, str(contourCounter), (x+w-10,y-20),cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,0,255), 2)
 		except Exception as e:
 			pass
+		db.execute("select iid from image_table order by iid desc limit 1")		# fetch iid of last row
+		thisIID = db.fetchone()
+		try:
+			thisIID = int(thisIID[0])#+1
+		except:					# NoneType Exception
+			thisIID = 1;
 		db.execute("insert into cloud_table (iid, cid, area) values (%s, %s, %s)" % (str(thisIID), str(contourCounter), str(sqlArea)))
 		con.commit()
 	else:

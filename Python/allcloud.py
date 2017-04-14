@@ -116,7 +116,7 @@ def plotGraph():
 		plt.ylabel("Area (Sq.KM)",fontsize=15)
 		plt.title("Cloud Area Statistics",fontsize=30)
 		plt.figtext(.5,.86,('For reflectivity range: %s to %s dB.' % (lowerRange, upperRange)),fontsize=10,ha='center')
-		plt.grid(True)
+		plt.grid(False)
 		plt.plot(xAxis, yAxis, linewidth=2.0, label=("Cloud " + str(cldCnt))) #marker='o'
 		plt.legend(loc='upper right', prop={'size':10})
 	fig.savefig(dirPath + "/cloudTracking/analyzedPlot.png")
@@ -152,7 +152,7 @@ print "Upper reflectivity limit(dB): %s\nLower reflectivity limit(dB): %s" % (st
 
 for i in range(0,l):
     s = str(z[i])
-    if (s.endswith('.png') or s.endswith('.bmp') or s.endswith('.jpg')): #and (s.startswith('c')):
+    if (s.find('KASPR') > -1):
         cmd = "python cloud.py -i " + s + " -x " + str(RADAR_DIAMETER) + " -y " + str(RADAR_HEIGHT) + rangeCommand
         os.system(cmd)
     else:
