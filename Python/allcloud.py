@@ -10,13 +10,21 @@ import time
 import MySQLdb as mdb
 import matplotlib.pyplot as plt
 import numpy as np
+import multiprocessing
+import math
 
 # Global varables
+THREADS = 6
+SEQUENTIAL = False
 SHOW_PLOT = False
 dirPath = "/home/cyberfox/iitm/"
 rangeCommand = ""
 XDIVS = 10
-SMOOTHENER = 1
+SMOOTHENER = 3
+p = None
+c = None
+cmds = []
+z_new = []
 
 # for printing colorful text
 class colorText:
@@ -136,6 +144,31 @@ def plotGraph():
 	if SHOW_PLOT:
 		plt.show()
 
+def ex(d):
+	os.system(d)
+
+def runThread():
+	global c
+	tmp = 0
+	for c in range(1,int(math.ceil(len(z_new)/THREADS)+2)):
+		global p
+		jobs = []
+		for i in range(THREADS):
+			try:
+				p = multiprocessing.Process(target=ex,args=(cmds[tmp+i],))
+				jobs.append(p)
+				p.start()
+				time.sleep(0.25)
+			except:
+				print "All threads have been started."
+				break
+		try:
+			p.join()
+		except:
+			pass
+		p = None
+		tmp += THREADS
+
 # initialize MySQL database to store analyzed data.
 initDB()
 
@@ -163,15 +196,30 @@ RADAR_HEIGHT = int(args["height"])
 print colorText.WARN + "USER INPUT PARAMETERS:\n\nTotal distace on X-axis :%s KMs\nTotal height on Y-axis :%s KMs" % (str(RADAR_DIAMETER),str(RADAR_HEIGHT))
 print "Upper reflectivity limit(dB): %s\nLower reflectivity limit(dB): %s" % (str(upperRange),str(lowerRange)) + colorText.END
 
-for i in range(0,l):
-    s = str(z[i])
-    if (s.find('KASPR') > -1):
-        cmd = "python cloud.py -i " + s + " -x " + str(RADAR_DIAMETER) + " -y " + str(RADAR_HEIGHT) + rangeCommand
-        os.system(cmd)
-		#os.system("clear")
-    else:
-        pass
+if SEQUENTIAL:
+	for i in range(0,l):
+	    s = str(z[i])
+	    if (s.find('KASPR') > -1):
+	        cmd = "python cloud.py -i " + s + " -x " + str(RADAR_DIAMETER) + " -y " + str(RADAR_HEIGHT) + rangeCommand
+	        os.system(cmd)
+	    else:
+	        pass
+else:
+	# Pre-process paths for parallel execution
+	for i in range(0,l):
+		temp = z[i]
+		if(temp.find('KASPR') == -1):
+			pass
+		else:
+			z_new.append(temp)
 
-print colorText.GREEN + "\nTime required for script execution: "+str(round(time.time()-t,3))+" Seconds\n" + colorText.END
+	for i in range(0,len(z_new)):
+		cmd = "python ./cloud.py -i " + z_new[i] + " -x " + str(RADAR_DIAMETER) + " -y " + str(RADAR_HEIGHT) + rangeCommand
+		cmds.append(cmd)
+
+	# Multithreading begins...
+	runThread()
+
 plotGraph()
+print colorText.GREEN + "\nTime required for script execution: "+str(round(time.time()-t,3))+" Seconds\n" + colorText.END
 closeDB()
