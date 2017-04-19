@@ -15,6 +15,8 @@ import numpy as np
 SHOW_PLOT = False
 dirPath = "/home/cyberfox/iitm/"
 rangeCommand = ""
+XDIVS = 10
+SMOOTHENER = 1
 
 # for printing colorful text
 class colorText:
@@ -62,6 +64,10 @@ def closeDB():
 	print colorText.WARN + "\nClosing database...\n" + colorText.END
 	con.close()
 
+def smooth(y, box_pts):
+    box = np.ones(box_pts)/box_pts
+    y_smooth = np.convolve(y, box, mode='same')
+    return y_smooth
 
 def plotGraph():
 	print colorText.BOLD + colorText.UNDR + colorText.HEAD + "\nPlotting analyzed data... Please wait...\n" + colorText.END
@@ -70,15 +76,19 @@ def plotGraph():
 	fetchTime = db.fetchall()
 	cnt = len(fetchTime)
 	timeArray = []
+	correctionCount = 0
 	for i in range(0,cnt):
-		if((int(fetchTime[i][0][0]) != 1) and (int(fetchTime[i][0][0]) != 0)):		# check if time starts with 0x.min or 1x.min
-			temp = "0" + fetchTime[i][0]
-			timeArray.append(temp)
+		if((i%(round(cnt/XDIVS)+1) == 0) or (i == cnt-1)):
+			if((int(fetchTime[i][0][0]) != 1) and (int(fetchTime[i][0][0]) != 0)):		# check if time starts with 0x.min or 1x.min
+				temp = "0" + fetchTime[i][0]
+				timeArray.append(temp)
+			else:
+				temp = fetchTime[i][0]
+				timeArray.append(temp)
+				print i
+			correctionCount += 1
 		else:
-			temp = fetchTime[i][0]
-			timeArray.append(temp)
-
-	#timeArray.sort()
+			pass
 	db.execute("select max(iid) from cloud_table")
 	maxImages = db.fetchone()
 	maxImages = int(maxImages[0])
@@ -95,9 +105,10 @@ def plotGraph():
 		db.execute("select area from cloud_table where cid=%s" % cldCnt)
 		fetchArea = db.fetchall()
 		cnt = len(fetchArea)
-		areaArray = np.zeros((maxImages),np.float32);
+		areaArray = np.zeros((maxImages),np.float16)
 		for k in range(0,cnt):
-			db.execute("select iid from cloud_table where cast(area as decimal)=cast(%s as decimal)" % str(fetchArea[k][0]))
+			#db.execute("select iid from cloud_table where cast(area as decimal)=cast(%s as decimal)" % str(fetchArea[k][0]))
+			db.execute("select iid from cloud_table where abs(area - %s) < 0.0005" % str(fetchArea[k][0]))
 			index = db.fetchone()
 			index = int(index[0])
 			areaArray[index-1] = float(fetchArea[k][0])
@@ -116,9 +127,11 @@ def plotGraph():
 		plt.ylabel("Area (Sq.KM)",fontsize=15)
 		plt.title("Cloud Area Statistics",fontsize=30)
 		plt.figtext(.5,.86,('For reflectivity range: %s to %s dB.' % (lowerRange, upperRange)),fontsize=10,ha='center')
-		plt.grid(False)
-		plt.plot(xAxis, yAxis, linewidth=2.0, label=("Cloud " + str(cldCnt))) #marker='o'
+		plt.grid(True)
+		plt.locator_params(axis='x', nbins=XDIVS)		# limits x-labels to 10. Eliminates crowd on X axis.
+		plt.plot(xAxis, smooth(yAxis,SMOOTHENER), linewidth=1.5, label=("Cloud " + str(cldCnt)),marker='o') #marker='o'
 		plt.legend(loc='upper right', prop={'size':10})
+		#plt.plot(xAxis, yAxis, linewidth=1,ls='dotted',label='_nolegend_')
 	fig.savefig(dirPath + "/cloudTracking/analyzedPlot.png")
 	if SHOW_PLOT:
 		plt.show()
@@ -155,6 +168,7 @@ for i in range(0,l):
     if (s.find('KASPR') > -1):
         cmd = "python cloud.py -i " + s + " -x " + str(RADAR_DIAMETER) + " -y " + str(RADAR_HEIGHT) + rangeCommand
         os.system(cmd)
+		#os.system("clear")
     else:
         pass
 

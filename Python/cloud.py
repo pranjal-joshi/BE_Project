@@ -12,8 +12,6 @@ import argparse
 import os
 import sys
 import imutils
-import pytesseract
-from PIL import Image
 import MySQLdb as mdb
 from multiprocessing import Process, Value
 
@@ -95,6 +93,8 @@ def closeDB():
 def getOCR(path):
 	global thisIID
 	if OCR:				# Deprecated ---> Less accurate, More computation
+		import pytesseract
+		from PIL import Image
 		con = mdb.connect("localhost","root","linux")
 		db = con.cursor()
 		db.execute("use cloudTracking")
@@ -121,8 +121,9 @@ def getOCR(path):
 		s = s.split('-')
 		d = s[0]
 		t = s[1]
-		time = t[0:2] + ":" + t[2:4] + ":" + t[4:6]
-		date = d[0:4] + "-" + d[5:6] + ":" + d[7:8]
+		time = t[0:2] + ":" + t[2:4] + ":" + t[4:6] + "\n"
+		date = d[0:4] + "-" + d[5:6] + "-" + d[7:8]
+		time = time + date
 		print colorText.HEAD + ("Image captured at : %s" % time) + colorText.END
 		db.execute("insert into image_table(datetime) values ('%s')" % time)
 		con.commit()
@@ -199,7 +200,7 @@ if checkPath(path):
     img = cv2.imread(path)
     outputImg = img
 else:
-    sys.exit(colorText.BOLD + colorText.FAIL + "Invalid image path is given!" + colorText.FAIL)
+    sys.exit(colorText.BOLD + colorText.FAIL + "Invalid image path is given!" + colorText.FAIL + " : " + path)
 
 if MULTIPROCESSING:
 	ocrProcess = Process(target=getOCR,args=(path,))
@@ -320,16 +321,16 @@ for cnt in contours:
 		ret,croppedCloudThresh = cv2.threshold(croppedCloud,1,255,cv2.THRESH_BINARY)
 		area = cv2.countNonZero(croppedCloudThresh)
 		####
-		outputImg = cv2.drawContours(img, contours, -1, (0,0,0), 3)
+		outputImg = cv2.drawContours(img, contours, -1, (0,0,0), 1)
 		cv2.circle(outputImg, (cX, cY), 4, (0,0,0), -1)
 		if MULTIPROCESSING:
 			PIXEL_AREA = multiprocessing_pixel_area.value
 		printArea = (area*PIXEL_AREA)
-		sqlArea = float('%.3f' % printArea)
+		sqlArea = float('%.6f' % printArea)
 		printArea = ('%.3f' % printArea) + " Sq.Kms "				## truncate to 3 decimals
 		contourCounter = contourCounter + 1
 		print printArea + "\t-> cloud number ->\t" + str(contourCounter)
-		cv2.putText(outputImg, printArea, (cX - 20, cY - 20),cv2.FONT_HERSHEY_SIMPLEX, 0.6, (20,20,20), 2)
+		cv2.putText(outputImg, printArea, (cX - 20, cY - 20),cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,0,0), 2)
 		try:
 			cv2.putText(outputImg, str(contourCounter), (x+w-10,y-20),cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,0,255), 2)
 		except Exception as e:
@@ -348,7 +349,7 @@ for cnt in contours:
 contours = list(contours)
 contours.insert(0, colorBoxContour)
 contours = tuple(contours)
-outputImg = cv2.drawContours(outputImg, contours, -1,(0,0,0),3)
+outputImg = cv2.drawContours(outputImg, contours, -1,(0,0,0),2)
 
 innerCopy = innerThresh.copy()
 _,innerContours,_ = cv2.findContours(innerCopy, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
