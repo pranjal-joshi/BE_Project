@@ -32,8 +32,13 @@ try:
 	db = con.cursor()
 	db.execute("use cloudTracking")
 except Exception as e:
-	raise e
-	sys.exit(colorText.FAIL + "Failed to connect MySQL database! Check credentials & make sure that MySQL server is running in background." + colorText.END)
+	try:
+		con = mdb.connect("localhost","root","winx1234")
+		db = con.cursor()
+		db.execute("use cloudTracking")
+	except Exception as e:
+		raise e
+		sys.exit(colorText.FAIL + "Failed to connect MySQL database! Check credentials & make sure that MySQL server is running in background." + colorText.END)
 
 ### CONSTANTS ###
 STEPWISE = False
@@ -108,7 +113,7 @@ def getOCR(path):
 		datetime = datetime.replace('O','0')
 		datetime = datetime.replace('\n','')
 		datetime = datetime.replace(' ','')
-		print colorText.HEAD + "Image captured at : %s" % datetime + colorText.END
+		#print colorText.HEAD + "Image captured at : %s" % datetime + colorText.END
 		db.execute("insert into image_table(datetime) values ('%s')" % datetime)
 		con.commit()
 		pass
@@ -124,13 +129,13 @@ def getOCR(path):
 		time = t[0:2] + ":" + t[2:4] + ":" + t[4:6] + "\n"
 		date = d[0:4] + "-" + d[5:6] + "-" + d[7:8]
 		time = time + date
-		print colorText.HEAD + ("Image captured at : %s" % time) + colorText.END
+		#print colorText.HEAD + ("Image captured at : %s" % time) + colorText.END
 		db.execute("insert into image_table(datetime) values ('%s')" % time)
 		con.commit()
 	db.execute("select iid from image_table order by iid desc limit 1")		# fetch iid of last row
 	thisIID = db.fetchone()
 	thisIID = int(thisIID[0])
-	print colorText.HEAD + "Image number: " + str(thisIID) + colorText.END
+	#print colorText.HEAD + "Image number: " + str(thisIID) + colorText.END
 
 bgmask = 0
 def getPixelArea(shared_var):
@@ -194,7 +199,7 @@ lowerRange = int(args["lower"])
 upperRange = int(args["upper"])
 rangeScale = "Reflectivity range: " + str(lowerRange) + " to " + str(upperRange) + " (in dB)"
 
-print colorText.BLUE + "\nOpening image: ", path, colorText.END
+#print colorText.BLUE + "\nOpening image: ", path, colorText.END
 
 if checkPath(path):
     img = cv2.imread(path)
@@ -233,7 +238,7 @@ if(lowerRange != None and upperRange != None):
 		if(upperRange < lowerRange):
 			sys.exit(colorText.FAIL + "Upper range can't be smaller than lower range!" + colorText.END)
 	except Exception as e:
-		print colorText.FAIL + "Given color value is not in range!\nColor Ranges ->" + str(COLORBAR) + colorText.END
+		#print colorText.FAIL + "Given color value is not in range!\nColor Ranges ->" + str(COLORBAR) + colorText.END
 		try:		# Kill batch processing if running with wrong inputs.
 			os.system("sudo killall allcloud.py")
 		except:
@@ -305,7 +310,7 @@ _,contours,_ = cv2.findContours(contourImg, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_
 colorBoxContour = contours[0]
 contours = contours[1:len(contours)]				## --> Exclude color bar area calculations :)
 
-print "\nAreas of all clouds (MINIMUM_CLOUD_AREA = %d pixels):\n" % MINIMUM_CLOUD_AREA
+#print "\nAreas of all clouds (MINIMUM_CLOUD_AREA = %d pixels):\n" % MINIMUM_CLOUD_AREA
 contourCounter = 0
 
 for cnt in contours:
@@ -329,7 +334,7 @@ for cnt in contours:
 		sqlArea = float('%.6f' % printArea)
 		printArea = ('%.3f' % printArea) + " Sq.Kms "				## truncate to 3 decimals
 		contourCounter = contourCounter + 1
-		print printArea + "\t-> cloud number ->\t" + str(contourCounter)
+		#print printArea + "\t-> cloud number ->\t" + str(contourCounter)
 		cv2.putText(outputImg, printArea, (cX - 20, cY - 20),cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,0,0), 2)
 		try:
 			cv2.putText(outputImg, str(contourCounter), (x+w-10,y-20),cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,0,255), 2)
@@ -416,7 +421,7 @@ if SHOW_IMAGES:
 	while True:
 	    key = cv2.waitKey(1) & 0xFF
 	    if key == ord("q"):                 ## exit loop on pressing Q key
-	        print "\nQuitting..."
+	        #print "\nQuitting..."
 	        break
 
 	cv2.destroyAllWindows()

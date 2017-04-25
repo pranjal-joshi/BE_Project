@@ -12,19 +12,23 @@ import matplotlib.pyplot as plt
 import numpy as np
 import multiprocessing
 import math
+import progressbar
 
 # Global varables
-THREADS = 6
+THREADS = 4
 SEQUENTIAL = False
 SHOW_PLOT = False
-dirPath = "/home/cyberfox/iitm/"
+dirPath = os.path.abspath('.')		#"/home/cyberfox/iitm/"
+if(not(os.path.isdir(os.path.join(dirPath,'cloudTracking')))):
+	os.system("mkdir cloudTracking")
 rangeCommand = ""
 XDIVS = 10
-SMOOTHENER = 3
+SMOOTHENER = 1
 p = None
 c = None
 cmds = []
 z_new = []
+BLOCK_CHAR = u"\u2588"
 
 # for printing colorful text
 class colorText:
@@ -45,7 +49,13 @@ try:
 	con = mdb.connect("localhost","root","linux")
 	db = con.cursor()
 except Exception as e:
-	sys.exit(colorText.FAIL + colorText.BOLD + "Failed to connect MySQL database! Check credentials & make sure that MySQL server is running in background." + colorText.END)
+	try:
+		con = mdb.connect("localhost","root","winx1234")
+		db = con.cursor()
+		db.execute("use cloudTracking")
+	except Exception as e:
+		raise e
+		sys.exit(colorText.FAIL + "Failed to connect MySQL database! Check credentials & make sure that MySQL server is running in background." + colorText.END)
 
 def initDB():
 	try:
@@ -93,7 +103,6 @@ def plotGraph():
 			else:
 				temp = fetchTime[i][0]
 				timeArray.append(temp)
-				print i
 			correctionCount += 1
 		else:
 			pass
@@ -127,8 +136,8 @@ def plotGraph():
 		yAxis = areaArray
 		yAxis = np.pad(yAxis, pad_width=(len(fetchTime)-len(yAxis)), mode='constant', constant_values=0)[len(fetchTime)-len(yAxis):]	# 0 pad for dimesion match
 		xTicks = timeArray
-		print "xAxis: ", xAxis
-		print "yAxis: ", yAxis
+		#print "xAxis: ", xAxis
+		#print "yAxis: ", yAxis
 		plt.xticks(xAxis, xTicks)
 		plt.ylim((0,maxArea+20))
 		plt.xlabel("Time",fontsize=15)
@@ -147,9 +156,19 @@ def plotGraph():
 def ex(d):
 	os.system(d)
 
+def rangeMap(x,inmin,inmax,outmin,outmax,roundoff=False):
+	z = (x-inmin)*(outmax-outmin)/(inmax-inmin)+outmin;
+	if not roundoff:
+		return z
+	else:
+		return round(z)
+
 def runThread():
 	global c
 	tmp = 0
+	bar = progressbar.ProgressBar(maxval=int(math.ceil(len(z_new)/THREADS)+2),widgets=[progressbar.Bar(BLOCK_CHAR,'[',']'),' ',progressbar.Percentage()])
+	print "Processing...\n"
+	bar.start()
 	for c in range(1,int(math.ceil(len(z_new)/THREADS)+2)):
 		global p
 		jobs = []
@@ -158,6 +177,7 @@ def runThread():
 				p = multiprocessing.Process(target=ex,args=(cmds[tmp+i],))
 				jobs.append(p)
 				p.start()
+				bar.update(c)#rangeMap((c*i+1),1,len(cmd),1,100,roundoff=True))
 				time.sleep(0.25)
 			except:
 				print "All threads have been started."
@@ -168,6 +188,7 @@ def runThread():
 			pass
 		p = None
 		tmp += THREADS
+	bar.finish()
 
 # initialize MySQL database to store analyzed data.
 initDB()
@@ -193,17 +214,32 @@ else:
 
 RADAR_DIAMETER = int(args["diameter"])
 RADAR_HEIGHT = int(args["height"])
-print colorText.WARN + "USER INPUT PARAMETERS:\n\nTotal distace on X-axis :%s KMs\nTotal height on Y-axis :%s KMs" % (str(RADAR_DIAMETER),str(RADAR_HEIGHT))
-print "Upper reflectivity limit(dB): %s\nLower reflectivity limit(dB): %s" % (str(upperRange),str(lowerRange)) + colorText.END
+print colorText.WARN + colorText.BOLD + "USER INPUT PARAMETERS:\n\nTotal distace on X-axis :%s KMs\nTotal height on Y-axis :%s KMs" % (str(RADAR_DIAMETER),str(RADAR_HEIGHT))
+print "Upper reflectivity limit(dB): %s\nLower reflectivity limit(dB): %s\n" % (str(upperRange),str(lowerRange)) + colorText.END
+
+print colorText.BLUE + colorText.BOLD + "SYSTEM INFORMATION:\n\nAvailabe CPU Cores: %d" % (multiprocessing.cpu_count())
+print "No. of parallel threads: %s\n" % (str(THREADS) if (SEQUENTIAL == False) else "1 [SEQUENTIAL flag is activated manually]") + colorText.END
 
 if SEQUENTIAL:
+	for i in range(0,l):
+		s = str(z[i])
+		if(s.find('KASPR') > -1):
+			z_new.append(s)
+
+	l = len(z_new)
+	z = z_new
+	bar = progressbar.ProgressBar(maxval=l,widgets=[progressbar.Bar(BLOCK_CHAR,'[',']'),' ',progressbar.Percentage()])
+	print "Processing...\n"
+	bar.start()
 	for i in range(0,l):
 	    s = str(z[i])
 	    if (s.find('KASPR') > -1):
 	        cmd = "python cloud.py -i " + s + " -x " + str(RADAR_DIAMETER) + " -y " + str(RADAR_HEIGHT) + rangeCommand
+		bar.update(i)
 	        os.system(cmd)
 	    else:
 	        pass
+	bar.finish()
 else:
 	# Pre-process paths for parallel execution
 	for i in range(0,l):
