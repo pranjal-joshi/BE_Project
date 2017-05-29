@@ -118,6 +118,8 @@ def plotGraph():
 
 	fig = plt.figure(figsize=(16,9))
 
+	yMax = []
+
 	for cldCnt in range(1,maxClouds+1):
 		db.execute("select area from cloud_table where cid=%s" % cldCnt)
 		fetchArea = db.fetchall()
@@ -148,8 +150,33 @@ def plotGraph():
 		plt.locator_params(axis='x', nbins=XDIVS)		# limits x-labels to 10. Eliminates crowd on X axis.
 		plt.plot(xAxis, smooth(yAxis,SMOOTHENER), linewidth=1.5, label=("Cloud " + str(cldCnt)),marker='o') #marker='o'
 		plt.legend(loc='upper right', prop={'size':10})
-		#plt.plot(xAxis, yAxis, linewidth=1,ls='dotted',label='_nolegend_')
+
+		if cldCnt == 1:						# to plot effective area
+			yMax = np.zeros_like(yAxis)
+		yMax = np.vstack((yMax,yAxis))
+
 	fig.savefig(dirPath + "/cloudTracking/analyzedPlot.png")
+
+	# effective area plot
+	plt.clf()
+	yMax = np.sort(yMax,axis=0)
+	yMax = yMax[1:]
+	yMax = np.flip(yMax ,axis=0)
+	plt.gca().set_prop_cycle(None)
+	plt.xticks(xAxis, xTicks)
+	plt.ylim((0,maxArea+20))
+	plt.xlabel("Time",fontsize=15)
+	plt.ylabel("Area (Sq.KM)",fontsize=15)
+	plt.title("Effective Cloud Area Statistics",fontsize=30)
+	plt.figtext(.5,.86,('For reflectivity range: %s to %s dB.' % (lowerRange, upperRange)),fontsize=10,ha='center')
+	plt.grid(True)
+	plt.locator_params(axis='x', nbins=XDIVS)		# limits x-labels to 10. Eliminates crowd on X axis.
+	for i in range(0,yMax.shape[0]):
+		plt.plot(xAxis,smooth(yMax[i],SMOOTHENER),linewidth=1.5,label=("Cloud " + str(cldCnt)),marker='o')
+	plt.legend(loc='upper right', prop={'size':10})
+	fig.savefig(dirPath + "/cloudTracking/effectivePlot.png")
+	###
+
 	if SHOW_PLOT:
 		plt.show()
 
@@ -177,10 +204,10 @@ def runThread():
 				p = multiprocessing.Process(target=ex,args=(cmds[tmp+i],))
 				jobs.append(p)
 				p.start()
-				bar.update(c)#rangeMap((c*i+1),1,len(cmd),1,100,roundoff=True))
+				bar.update(c)
 				time.sleep(0.25)
 			except:
-				print "All threads have been started."
+				print "\nAll threads have been started."
 				break
 		try:
 			p.join()
@@ -202,10 +229,16 @@ ap.add_argument("-x","--diameter",required=True,help="RADAR diameter in KM [ X a
 ap.add_argument("-y","--height",required=True,help="RADAR height in KM [ Y axis ]")
 ap.add_argument("-l","--lower",required=False,help="Lower range of Reflectivity")
 ap.add_argument("-u","--upper",required=False,help="Upper range of Reflectivity")
+ap.add_argument("-f","--filter",required=False,help="Apply smoothening filter of specified window")
 args = vars(ap.parse_args())
 
 lowerRange = int(args["lower"])
 upperRange = int(args["upper"])
+
+if args["filter"] == None:
+	SMOOTHENER = 1
+else:
+	SMOOTHENER = int(args["filter"])
 
 if(lowerRange != None and upperRange != None):
 	rangeCommand = " -l " + str(lowerRange) + " -u " + str(upperRange)
@@ -215,7 +248,7 @@ else:
 RADAR_DIAMETER = int(args["diameter"])
 RADAR_HEIGHT = int(args["height"])
 print colorText.WARN + colorText.BOLD + "USER INPUT PARAMETERS:\n\nTotal distace on X-axis :%s KMs\nTotal height on Y-axis :%s KMs" % (str(RADAR_DIAMETER),str(RADAR_HEIGHT))
-print "Upper reflectivity limit(dB): %s\nLower reflectivity limit(dB): %s\n" % (str(upperRange),str(lowerRange)) + colorText.END
+print "Upper reflectivity limit(dB): %s\nLower reflectivity limit(dB): %s\nSmoothening filter: %d\n" % (str(upperRange),str(lowerRange),SMOOTHENER) + colorText.END
 
 print colorText.BLUE + colorText.BOLD + "SYSTEM INFORMATION:\n\nAvailabe CPU Cores: %d" % (multiprocessing.cpu_count())
 print "No. of parallel threads: %s\n" % (str(THREADS) if (SEQUENTIAL == False) else "1 [SEQUENTIAL flag is activated manually]") + colorText.END
