@@ -179,10 +179,15 @@ def getPixelArea(shared_var):
 
 	PIXEL_AREA = float(PIXEL_Y_SIDE)*PIXEL_X_SIDE
 	shared_var.value = PIXEL_AREA
+	shared_var_bottom.value = RADAR_START_POINT_Y
+	multiprocessing_pixel_y_side.value = PIXEL_Y_SIDE
 
 ## GLOBAL VARIABLES ##
 PIXEL_AREA = 0
+## Shared variable for multiprocessing ##
 multiprocessing_pixel_area = Value('d',0.0)
+multiprocessing_bottom_height = Value('d',0.0)
+multiprocessing_pixel_y_side = Value('d',0.0)
 ##
 
 ap = argparse.ArgumentParser()
@@ -210,12 +215,12 @@ else:
 
 if MULTIPROCESSING:
 	ocrProcess = Process(target=getOCR,args=(path,))
-	pixelAreaProcess = Process(target=getPixelArea,args=(multiprocessing_pixel_area,))
+	pixelAreaProcess = Process(target=getPixelArea,args=(multiprocessing_pixel_area,multiprocessing_bottom_height,))
 	ocrProcess.start()
 	pixelAreaProcess.start()
 else:
 	getOCR(path)				# get datetime of image by applying OCR.
-	getPixelArea(multiprocessing_pixel_area)
+	getPixelArea(multiprocessing_pixel_area,multiprocessing_bottom_height)
 
 # HSV cloud separation								## --> Convert to HSV colorspace
 hsvImg = cv2.cvtColor(img,cv2.COLOR_BGR2HSV)
@@ -323,6 +328,8 @@ for cnt in contours:
 		#### new code - 29 JAN - cloud cropping & thresholding ###
 		x,y,w,h = cv2.boundingRect(cnt)
 		cv2.rectangle(outputImg,(x,y),(x+w,y+h),(0,0,255),3)
+		cloudTop = abs((y - multiprocessing_bottom_height.value) * multiprocessing_pixel_y_side.value)
+		cloudBot = abs(((y+h) - multiprocessing_bottom_height.value) * multiprocessing_pixel_y_side.value)
 		croppedCloud = gray_blur[y:y+h, x:x+w]
 		ret,croppedCloudThresh = cv2.threshold(croppedCloud,1,255,cv2.THRESH_BINARY)
 		area = cv2.countNonZero(croppedCloudThresh)
@@ -339,6 +346,8 @@ for cnt in contours:
 		cv2.putText(outputImg, printArea, (cX - 20, cY - 20),cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,0,0), 2)
 		try:
 			cv2.putText(outputImg, str(contourCounter), (x+w-10,y-20),cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,0,255), 2)
+			cv2.putText(outputImg, str('%.2f' % cloudTop)+"Km", (x+w+10,y),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255), 1)
+			cv2.putText(outputImg, str('%.2f' % cloudBot)+"Km", (x+w+10,y+h),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255), 1)
 		except Exception as e:
 			pass
 		db.execute("select iid from image_table order by iid desc limit 1")		# fetch iid of last row
@@ -347,7 +356,7 @@ for cnt in contours:
 			thisIID = int(thisIID[0])#+1
 		except:					# NoneType Exception
 			thisIID = 1;
-		db.execute("insert into cloud_table (iid, cid, area) values (%s, %s, %s)" % (str(thisIID), str(contourCounter), str(sqlArea)))
+		db.execute("insert into cloud_table (iid, cid, area, top, bot) values (%s, %s, %s, %s, %s)" % (str(thisIID), str(contourCounter), str(sqlArea), str(cloudTop), str(cloudBot)))
 		con.commit()
 	else:
 		pass

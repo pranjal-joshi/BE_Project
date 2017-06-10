@@ -75,7 +75,7 @@ def initDB():
 		#db.execute("create database test")
 		db.execute("use test")
 		db.execute("create table image_table(iid INT AUTO_INCREMENT, datetime VARCHAR(40), PRIMARY KEY(iid))")
-		db.execute("create table cloud_table(iid INT, cid INT, area FLOAT)")
+		db.execute("create table cloud_table(iid INT, cid INT, area FLOAT, top FLOAT, bot FLOAT)")
 		con.commit()
 		print(colorText.GREEN + "Database created successfully!\n" + colorText.END)
 	except Exception as e:
@@ -221,6 +221,30 @@ def runThread():
 		tmp += THREADS
 	bar.finish()
 
+def sqlToText():
+	txtFile = open(dirPath + "/cloudTracking/data.txt","w")
+	db.execute("use test")
+	db.execute("select * from cloud_table")
+	data = db.fetchall()
+	names = [i[0] for i in db.description]
+	string = ""
+	string += "---------------------------------------------------------------------------------------------------------\n"
+	for j in range(0,len(names)):
+		string += str(names[j]) + "\t|\t"
+	string += "date-time\t\t|"
+	string += "\n---------------------------------------------------------------------------------------------------------\n"
+	for j in range(0,len(data)):
+		for k in range(0,len(names)):
+			string += str('%.3f' % list(data[j])[k]) +"\t|\t"
+		db.execute("select datetime from image_table where iid=%s" % str(list(data[j])[0]))
+		date = str(list(db.fetchone())[0]).replace('\n',' ')
+		string += date + "\t|\n"
+
+	string += "---------------------------------------------------------------------------------------------------------\n"
+	print(colorText.WARN + "Saving database table in data.txt..." + colorText.END)
+	txtFile.write(string)
+	txtFile.close()
+
 # initialize MySQL database to store analyzed data.
 initDB()
 
@@ -294,5 +318,6 @@ else:
 	runThread()
 
 plotGraph()
+sqlToText()
 print(colorText.GREEN + "\nTime required for script execution: "+str(round(time.time()-t,3))+" Seconds\n" + colorText.END)
 closeDB()
