@@ -41,6 +41,7 @@ except Exception as e:
 		sys.exit(colorText.FAIL + "Failed to connect MySQL database! Check credentials & make sure that MySQL server is running in background." + colorText.END)
 
 ### CONSTANTS ###
+DRAW_RECTANGLE = False
 STEPWISE = False
 SHOW_IMAGES = False
 STORE_ORIGNINAL_IMAGE = False
@@ -52,10 +53,11 @@ savePath = "/home/cyberfox/iitm/cloudTracking/"
 thisIID = 0
 
 # Reflectivity values
-COLORBAR = [-32,-28,-24,-16,-12,-8,-4,0,8,12,16,24,28,32,40]
+COLORBAR = [-34,-32,-28,-24,-16,-12,-8,-4,0,8,12,16,24,28,32,40,42]
 
 # HSV color ranges
 COLOR_HSV_ARRAY = [np.array([120,255,255]),
+					np.array([120,255,255]),
 					np.array([90,255,255]),
 					np.array([75,255,255]),
 					np.array([60,255,255]),
@@ -69,6 +71,7 @@ COLOR_HSV_ARRAY = [np.array([120,255,255]),
 					np.array([168,255,255]),
 					np.array([150,255,255]),
 					np.array([150,127,255]),
+					np.array([150,52,255]),
 					np.array([150,52,255])
 					]
 
@@ -159,7 +162,7 @@ def getPixelArea(shared_var,shared_var_bottom):
 		global leftmost
 		global bottommost
 		area = cv2.contourArea(bgmaskCnt)
-		if area > 100000:
+		if area > 10000:
 			leftmost = tuple(bgmaskCnt[bgmaskCnt[:,:,0].argmin()][0])
 			rightmost = tuple(bgmaskCnt[bgmaskCnt[:,:,0].argmax()][0])
 			topmost = tuple(bgmaskCnt[bgmaskCnt[:,:,1].argmin()][0])
@@ -326,30 +329,34 @@ for cnt in contours:
 		cY = int(M["m01"] / M["m00"])
 		#### new code - 29 JAN - cloud cropping & thresholding ###
 		x,y,w,h = cv2.boundingRect(cnt)
-		cv2.rectangle(outputImg,(x,y),(x+w,y+h),(0,0,255),3)
 		cloudTop = abs((y - multiprocessing_bottom_height.value) * multiprocessing_pixel_y_side.value)
 		cloudBot = abs(((y+h) - multiprocessing_bottom_height.value) * multiprocessing_pixel_y_side.value)
-		#print("CloudTop: %f cloudBot: %f" % (cloudTop, cloudBot))
+		if DRAW_RECTANGLE:
+			if cloudBot < 8:
+				cv2.rectangle(outputImg,(x,y),(x+w,y+h),(0,0,255),3)
+			else:
+				cv2.rectangle(outputImg,(x,y),(x+w,y+h),(255,0,0),3)
 		croppedCloud = gray_blur[y:y+h, x:x+w]
 		ret,croppedCloudThresh = cv2.threshold(croppedCloud,1,255,cv2.THRESH_BINARY)
 		area = cv2.countNonZero(croppedCloudThresh)
 		####
 		outputImg = cv2.drawContours(img, contours, -1, (0,0,0), 1)
-		cv2.circle(outputImg, (cX, cY), 4, (0,0,0), -1)
+		if DRAW_RECTANGLE:
+			cv2.circle(outputImg, (cX, cY), 4, (0,0,0), -1)
 		if MULTIPROCESSING:
 			PIXEL_AREA = multiprocessing_pixel_area.value
 		printArea = (area*PIXEL_AREA)
 		sqlArea = float('%.6f' % printArea)
 		printArea = ('%.3f' % printArea) + " Sq.Kms "				## truncate to 3 decimals
 		contourCounter = contourCounter + 1
-		#print printArea + "\t-> cloud number ->\t" + str(contourCounter)
-		cv2.putText(outputImg, printArea, (cX - 20, cY - 20),cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,0,0), 2)
-		try:
-			cv2.putText(outputImg, str(contourCounter), (x+w-10,y-20),cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,0,255), 2)
-			cv2.putText(outputImg, str('%.2f' % cloudTop)+"Km", (x+w+10,y),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255), 1)
-			cv2.putText(outputImg, str('%.2f' % cloudBot)+"Km", (x+w+10,y+h),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255), 1)
-		except Exception as e:
-			pass
+		if DRAW_RECTANGLE:
+			cv2.putText(outputImg, printArea, (cX - 20, cY - 20),cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,0,0), 2)
+			try:
+				cv2.putText(outputImg, str(contourCounter), (x+w-10,y-20),cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,0,255), 2)
+				cv2.putText(outputImg, str('%.2f' % cloudTop)+"Km", (x+w+10,y),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255), 1)
+				cv2.putText(outputImg, str('%.2f' % cloudBot)+"Km", (x+w+10,y+h),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255), 1)
+			except Exception as e:
+				pass
 		db.execute("select iid from image_table order by iid desc limit 1")		# fetch iid of last row
 		thisIID = db.fetchone()
 		try:
@@ -398,10 +405,11 @@ if STEPWISE:
 	storePath = savePath + path + 'grid.png'
 	cv2.imwrite(storePath,bgmask)
 
-	cv2.putText(outputImg,'Cloud Area',(75,50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 2, cv2.LINE_AA)
-	tipText = "Scale: 1 pixel = " + str(PIXEL_AREA) + " Sq.Kms"
-	cv2.putText(outputImg,tipText,(75,80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255), 1, cv2.LINE_AA)
-	cv2.putText(outputImg,rangeScale,(75,100), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255), 1, cv2.LINE_AA)
+	if DRAW_RECTANGLE:
+		cv2.putText(outputImg,'Cloud Area',(75,50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 2, cv2.LINE_AA)
+		tipText = "Scale: 1 pixel = " + str(PIXEL_AREA) + " Sq.Kms"
+		cv2.putText(outputImg,tipText,(75,80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255), 1, cv2.LINE_AA)
+		cv2.putText(outputImg,rangeScale,(75,100), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255), 1, cv2.LINE_AA)
 	storePath = savePath + path + 'output.png'
 	cv2.imwrite(storePath,outputImg)
 
@@ -420,10 +428,11 @@ if STEPWISE:
 		cv2.imshow("croppedThresh",croppedCloudThresh)
 
 else:
-	cv2.putText(outputImg,'Cloud Area',(75,50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 2, cv2.LINE_AA)
-	tipText = "Scale: 1 pixel = " + str(PIXEL_AREA) + " Sq.Kms"
-	cv2.putText(outputImg,tipText,(75,80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255), 1, cv2.LINE_AA)
-	cv2.putText(outputImg,rangeScale,(75,100), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255), 1, cv2.LINE_AA)
+	if DRAW_RECTANGLE:
+		cv2.putText(outputImg,'Cloud Area',(75,50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 2, cv2.LINE_AA)
+		tipText = "Scale: 1 pixel = " + str(PIXEL_AREA) + " Sq.Kms"
+		cv2.putText(outputImg,tipText,(75,80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255), 1, cv2.LINE_AA)
+		cv2.putText(outputImg,rangeScale,(75,100), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255), 1, cv2.LINE_AA)
 	storePath = savePath + path + 'output.png'
 	cv2.imwrite(storePath,outputImg)
 
